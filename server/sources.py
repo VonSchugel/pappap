@@ -307,16 +307,50 @@ def edition(day,p,adapters=None):
     if keep: keep=[keep[0]]+sorted(keep[1:],key=lambda a:p["topics"].index(a["topic"]))
     return dict(summary=keep[0]["title"] if keep else "No matching releases or discoveries in the past seven days.",stories=keep,gaps=gaps,blocks=[])
 
-def hacks(day,p,read=fetch):
+def remote_rules(event):
+    """Admit a discovery only when the organizer affirmatively includes Morocco or worldwide entrants."""
+    u=urlsplit(event["url"])
+    if u.scheme!="https" or not re.fullmatch(r"[a-zA-Z0-9-]+\.devpost\.com",u.netloc): return None
+    rules="https://"+u.netloc+"/rules"
+    with urlopen(Request(rules,headers={"User-Agent":"Marqicci-Daybook/1.0"}),timeout=8) as res:
+        if urlsplit(res.geturl()).netloc!=u.netloc: return None
+        html=res.read(1200000).decode("utf8",errors="replace")
+    evidence=eligibility_evidence(html)
+    if not evidence: return None
+    return dict(title=event["title"],url=event["url"],mode="Fully remote · Devpost",remote=True,moroccoEligible=True,rules=rules,eligibility=evidence)
+
+def eligibility_evidence(html):
+    text=plain(re.sub(r"<(?:script|style)\b[^>]*>.*?</(?:script|style)>"," ",html,flags=re.I|re.S))
+    # Limit claims to clauses about entrants. Promotional references to global reach are insufficient.
+    include=re.search(r"(?:open to|eligible (?:entrants|participants) (?:include|are)|participants may (?:enter|participate) from)[^.]{0,150}?(?:worldwide|anywhere in the world|(?:all|any) countr(?:ies|y)|(?:residents of |participants (?:in|from) )?Morocco)\b",text,re.I)
+    if not include: return None
+    exclude=re.search(r"(?:not open to|exclud(?:es|ed|ing)|ineligible|except|prohibited)[^.]{0,600}\b(?:Morocco|Moroccan)\b",text,re.I)
+    restricted=re.search(r"(?:only open to|restricted to|limited to|must (?:reside|be (?:legal )?residents?) (?:in|of))[^.]{0,90}\b(?:United States|Canada|EU|Europe|United Kingdom|India|Australia)\b",text,re.I)
+    if exclude or restricted: return None
+    return "Organizer eligibility: "+include.group(0)[:200]+". Check the full rules for individual requirements."
+
+def hacks(day,p,read=fetch,review=remote_rules):
     records=catalog("events"); events=[]; gaps=[]
     try: discovered=read("https://devpost.com/api/hackathons",{"page":1})["hackathons"]
     except Exception: discovered=[]; gaps.append("Devpost discovery unavailable")
     vetted={canonical(r["url"]):r for r in records}
+    remote=[]
     for r in discovered:
         url=canonical(r["url"]); loc=r.get("displayed_location",{}).get("location","")
         if url in vetted or r.get("open_state")!="open" or r.get("invite_only"): continue
         if re.search(r"Morocco|Maroc|Casablanca|Rabat|Mohammedia|Marrakech|Tangier",loc,re.I):
-            vetted[url]=dict(title=r["title"],url=r["url"],mode="In person · "+loc,eligibility="Listed in Morocco · check organizer rules",country="MA",listed=True)
+            mode="Hybrid" if "hybrid" in (loc+" "+r.get("title","")).lower() else "In person"
+            vetted[url]=dict(title=r["title"],url=r["url"],mode=mode+" · "+loc,eligibility="Listed in Morocco · check organizer rules",country="MA",listed=True)
+        elif loc.strip().lower() in ("online","remote","virtual"):
+            remote.append(r)
+    def check(event):
+        try: return review(event),False
+        except Exception: return None,True
+    with futures.ThreadPoolExecutor(max_workers=4) as pool:
+        outcomes=list(pool.map(check,remote[:12]))
+    for event,failed in outcomes:
+        if event: vetted[canonical(event["url"])]=event
+    if any(failed for _,failed in outcomes): gaps.append("Some organizer eligibility rules unavailable")
     for r in vetted.values():
         if r.get("through","9999-12-31")<day or r.get("from","")>day: continue
         if r.get("country")!="MA" and not (r.get("remote") and r.get("moroccoEligible") and r.get("rules")): continue

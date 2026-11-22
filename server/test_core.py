@@ -100,4 +100,9 @@ class Coast(unittest.TestCase):
         with patch.object(s,"catalog",return_value=events):
             r=s.hacks(D,prefs(),lambda *args:{"hackathons":[]})
         self.assertEqual({e["title"] for e in r["events"]},{"Local","Remote"})
+    def test_online_discovery_requires_affirmative_eligibility(self):
+        self.assertTrue(s.eligibility_evidence("This hackathon is open to adult participants worldwide."))
+        self.assertFalse(s.eligibility_evidence("Promote your work worldwide. Open to residents of Ontario."))
+        self.assertFalse(s.eligibility_evidence("Open to participants worldwide. Excluding residents of Morocco."))
+        self.assertFalse(s.eligibility_evidence("Open to participants worldwide. Finalists must reside in Canada."))
 

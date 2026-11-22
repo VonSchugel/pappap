@@ -4,7 +4,7 @@ Marqicci is a single-user native Android daybook for Mohammedia. Today, Schedule
 
 ## Install the debug app
 
-Android 8.0 (API 26) or later is required. Download `app-debug.apk` from the **marqicci-debug-apk** artifact of an Android CI run and extract the ZIP. Open the APK on the phone, or use `adb install -r app-debug.apk`. A build on a different machine may use a different debug signing key. Export existing entries before uninstalling an earlier build. Android clears local journal data on uninstall.
+Android 8.0 (API 26) or later is required. Download **app-debug.apk** under Artifacts on a successful Android CI run while signed in to GitHub. Open the APK on the phone, or use `adb install -r app-debug.apk`. A build on a different machine may use a different debug signing key. Export existing entries before uninstalling an earlier build. Android clears local journal data on uninstall.
 
 To build from source, open this directory in Android Studio with JDK 17 and Android SDK Platform 35 installed. Use **Run → Run 'app'**, or run the wrapper below. The first build downloads Gradle and Maven dependencies.
 

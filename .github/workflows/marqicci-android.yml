@@ -2,6 +2,7 @@ name: Marqicci Android
 on:
   push:
     branches: ["codex/marqicci-android", "main", "marqicci-android", "codex/marqicci-*"]
+    paths-ignore: ["**.md"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,10 +23,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble debug and instrumentation APKs
         run: cd "$BOOK_DIR" && bash gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
-      - uses: actions/upload-artifact@v4
+      - name: Verify APK signature
+        run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$BOOK_DIR/app/build/outputs/apk/debug/app-debug.apk"'
+      - uses: actions/upload-artifact@v7
         with:
-          name: marqicci-debug-apk
           path: ${{ env.BOOK_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          archive: false
           if-no-files-found: error
       - name: Enable emulator acceleration
         run: |
@@ -50,4 +53,9 @@ jobs:
           if test -f Marqicci/gradlew; then cd Marqicci; fi
           python -m pip install -r server/requirements.txt httpx
           python -m unittest discover -s server -p 'test_*.py' -v
+      - name: Verify an n8n publication with the phone closed
+        timeout-minutes: 10
+        run: |
+          if test -f Marqicci/gradlew; then cd Marqicci; fi
+          bash scripts/check-scheduler.sh
 

@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_TOKEN: ${APP_TOKEN:?Set APP_TOKEN in .env}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+    ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - api_state:/state
+      - ./server/data:/daybook/server/data:ro
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.48.7
+    restart: unless-stopped
+    environment:
+      GENERIC_TIMEZONE: Africa/Casablanca
+      TZ: Africa/Casablanca
+    ports: ["127.0.0.1:5678:5678"]
+    volumes:
+      - workflows:/home/node/.n8n
+volumes:
+  api_state:
+  workflows:
+

@@ -1,0 +1,59 @@
+{
+  "zone": "Africa/Casablanca",
+  "lat": 33.71078,
+  "lon": -7.36798,
+  "swimStart": "08:00",
+  "swimEnd": "10:00",
+  "length": 8,
+  "topics": [
+    "AI models",
+    "Developer tools",
+    "Robotics"
+  ],
+  "repos": [
+    "ggml-org/llama.cpp",
+    "huggingface/transformers",
+    "huggingface/lerobot"
+  ],
+  "orgs": [
+    "huggingface"
+  ],
+  "accounts": [],
+  "sources": {
+    "github": true,
+    "hn": true,
+    "x": true
+  },
+  "schedule": {
+    "weather": {
+      "title": "Mohammedia weather",
+      "time": "06:00",
+      "enabled": true,
+      "notify": false
+    },
+    "swim": {
+      "title": "Mannesmann swim check",
+      "time": "06:00",
+      "enabled": true,
+      "notify": false
+    },
+    "tech": {
+      "title": "Tech Brief",
+      "time": "07:30",
+      "enabled": true,
+      "notify": false
+    },
+    "hacks": {
+      "title": "Hackathon digest",
+      "time": "09:00",
+      "enabled": true,
+      "notify": false
+    },
+    "journal": {
+      "title": "Evening journal",
+      "time": "19:00",
+      "enabled": false,
+      "notify": true
+    }
+  }
+}

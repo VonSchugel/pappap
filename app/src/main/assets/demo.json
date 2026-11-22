@@ -1,0 +1,174 @@
+[
+  {
+    "kind": "weather",
+    "title": "Mohammedia weather",
+    "summary": "A cool morning gives way to a warmer, breezier afternoon. A shower appears in the evening forecast.",
+    "blocks": [
+      {
+        "title": "Changes for outdoor plans",
+        "lines": [
+          "10:00 · Warmer air and a rising UV index.",
+          "15:00 · Gusts strengthen along the waterfront.",
+          "18:00 · Rain chances increase."
+        ]
+      },
+      {
+        "title": "Daylight & warnings",
+        "lines": [
+          "Sunrise 08:06 · Sunset 18:24",
+          "Official warnings unverified in this example."
+        ]
+      },
+      {
+        "title": "Hourly forecast",
+        "lines": [
+          "00:00   8°C · feels 7°C\nRain 10% · 0 mm  |  NW 315° 5 km/h · gust 14\nHumidity 70% · UV 0",
+          "01:00   9°C · feels 8°C\nRain 10% · 0 mm  |  NW 315° 4 km/h · gust 13\nHumidity 71% · UV 0",
+          "02:00   10°C · feels 9°C\nRain 10% · 0 mm  |  NW 315° 4 km/h · gust 13\nHumidity 71% · UV 0",
+          "03:00   11°C · feels 10°C\nRain 10% · 0 mm  |  NW 315° 4 km/h · gust 13\nHumidity 71% · UV 0",
+          "04:00   12°C · feels 11°C\nRain 10% · 0 mm  |  NW 315° 5 km/h · gust 14\nHumidity 70% · UV 0",
+          "05:00   14°C · feels 13°C\nRain 10% · 0 mm  |  NW 315° 6 km/h · gust 15\nHumidity 69% · UV 0",
+          "06:00   16°C · feels 15°C\nRain 10% · 0 mm  |  NW 315° 8 km/h · gust 17\nHumidity 67% · UV 0",
+          "07:00   17°C · feels 16°C\nRain 10% · 0 mm  |  NW 315° 10 km/h · gust 19\nHumidity 65% · UV 1",
+          "08:00   18°C · feels 17°C\nRain 10% · 0 mm  |  NW 315° 12 km/h · gust 21\nHumidity 63% · UV 2",
+          "09:00   19°C · feels 18°C\nRain 10% · 0 mm  |  NW 315° 14 km/h · gust 23\nHumidity 61% · UV 4",
+          "10:00   20°C · feels 19°C\nRain 10% · 0 mm  |  NW 315° 16 km/h · gust 25\nHumidity 59% · UV 4",
+          "11:00   20°C · feels 19°C\nRain 10% · 0 mm  |  NW 315° 18 km/h · gust 27\nHumidity 57% · UV 5",
+          "12:00   20°C · feels 19°C\nRain 10% · 0 mm  |  NW 315° 19 km/h · gust 28\nHumidity 56% · UV 5",
+          "13:00   19°C · feels 18°C\nRain 10% · 0 mm  |  NW 315° 20 km/h · gust 29\nHumidity 55% · UV 5",
+          "14:00   18°C · feels 17°C\nRain 10% · 0 mm  |  NW 315° 20 km/h · gust 29\nHumidity 55% · UV 4",
+          "15:00   17°C · feels 16°C\nRain 10% · 0 mm  |  NW 315° 20 km/h · gust 29\nHumidity 55% · UV 4",
+          "16:00   16°C · feels 15°C\nRain 10% · 0 mm  |  NW 315° 19 km/h · gust 28\nHumidity 56% · UV 2",
+          "17:00   14°C · feels 13°C\nRain 10% · 0 mm  |  NW 315° 18 km/h · gust 27\nHumidity 57% · UV 1",
+          "18:00   12°C · feels 11°C\nRain 55% · 0.6 mm  |  NW 315° 16 km/h · gust 25\nHumidity 59% · UV 0",
+          "19:00   11°C · feels 10°C\nRain 55% · 0.6 mm  |  NW 315° 14 km/h · gust 23\nHumidity 61% · UV 0",
+          "20:00   10°C · feels 9°C\nRain 55% · 0.6 mm  |  NW 315° 12 km/h · gust 21\nHumidity 63% · UV 0",
+          "21:00   9°C · feels 8°C\nRain 55% · 0.6 mm  |  NW 315° 10 km/h · gust 19\nHumidity 65% · UV 0",
+          "22:00   8°C · feels 7°C\nRain 55% · 0.6 mm  |  NW 315° 8 km/h · gust 17\nHumidity 67% · UV 0",
+          "23:00   8°C · feels 7°C\nRain 55% · 0.6 mm  |  NW 315° 6 km/h · gust 15\nHumidity 69% · UV 0"
+        ]
+      },
+      {
+        "title": "Forecast record",
+        "lines": [
+          "Illustrative hourly values · 05:40 example issue time.",
+          "Demo fixture · no successful network refresh."
+        ]
+      }
+    ],
+    "links": [
+      {
+        "title": "Official weather vigilance",
+        "url": "https://marocmeteo.ma/fr"
+      }
+    ]
+  },
+  {
+    "kind": "swim",
+    "title": "Mannesmann swim check",
+    "summary": "Local conditions unverified. Offshore swell can reach the rocks even when the pool looks calm.",
+    "blocks": [
+      {
+        "title": "Preferred window · 08:00–10:00",
+        "lines": [
+          "Example regional swell 1.1 m · 11 s · NW 310°",
+          "Example wind NW 12 km/h · gusts 20 km/h",
+          "Estimated offshore water temperature 18°C."
+        ]
+      },
+      {
+        "title": "Tides & notices",
+        "lines": [
+          "Local tide times and phase unavailable.",
+          "No verified closure feed or dated sample in this example."
+        ]
+      },
+      {
+        "title": "At the rocks",
+        "lines": [
+          "Check for waves reaching across the rock barrier, flow through gaps, flags and a usable exit throughout the swim. Follow posted closures and lifeguards."
+        ]
+      }
+    ],
+    "links": [
+      {
+        "title": "Official marine vigilance",
+        "url": "https://marocmeteo.ma/fr/vigilance/marine"
+      }
+    ]
+  },
+  {
+    "kind": "tech",
+    "title": "Tech Brief",
+    "summary": "A local inference engine changes its public API, followed by two projects worth exploring.",
+    "blocks": [],
+    "gaps": [
+      "X · no account connected"
+    ],
+    "stories": [
+      {
+        "title": "llama.cpp revises its public inference API",
+        "topic": "Developer tools",
+        "status": "Shipped",
+        "date": "2026-11-13",
+        "what": "Version 1.0.0 of llama.cpp.",
+        "change": "The release removes deprecated public interfaces and exposes speculative decoding in llama.h.",
+        "why": "If you embed llama.cpp directly, check your bindings before upgrading.",
+        "try": "Read the migration notes and build the tagged version.",
+        "access": "Source available · GitHub release",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/tag/v1.0.0",
+        "links": []
+      },
+      {
+        "title": "Read a model card before choosing weights",
+        "topic": "AI models",
+        "status": "Demo reading",
+        "date": "",
+        "what": "A worked example of an open-weight model card.",
+        "change": "This reading illustrates how to compare model variants.",
+        "why": "Weights, inference requirements and license terms are separate diligence checks.",
+        "try": "Open the model card and inspect its files and license.",
+        "access": "Check terms in the model card",
+        "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct",
+        "links": []
+      },
+      {
+        "title": "Trace a robot policy from data to evaluation",
+        "topic": "Robotics",
+        "status": "Demo reading",
+        "date": "",
+        "what": "LeRobot’s public repository.",
+        "change": "This example follows the repository’s dataset and policy workflow.",
+        "why": "You can inspect a policy’s input observations before attempting hardware deployment.",
+        "try": "Open the repository and follow its introductory examples.",
+        "access": "Published code",
+        "url": "https://github.com/huggingface/lerobot",
+        "links": []
+      }
+    ]
+  },
+  {
+    "kind": "hacks",
+    "title": "Hackathon digest",
+    "summary": "Two illustrative events for testing bookmarks and application deadlines.",
+    "events": [
+      {
+        "title": "Casablanca embedded systems studio",
+        "mode": "Hybrid · Morocco",
+        "eligibility": "Illustrative event · no active application",
+        "deadline": "@DAY+4",
+        "time": "17:00",
+        "url": ""
+      },
+      {
+        "title": "Remote robotics weekend",
+        "mode": "Fully remote",
+        "eligibility": "Illustrative worldwide event, including Morocco",
+        "deadline": "@DAY+7",
+        "time": "18:00",
+        "url": ""
+      }
+    ],
+    "blocks": []
+  }
+]

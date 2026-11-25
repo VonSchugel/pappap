@@ -123,7 +123,9 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     LaunchedEffect(message){if(message.isNotBlank()){snacks.showSnackbar(message,withDismissAction=true);message=""}}
     val typing=WindowInsets.ime.getBottom(LocalDensity.current)>0
     CompositionLocalProvider(LocalPages provides pages){
-        Scaffold(containerColor=paper,snackbarHost={SnackbarHost(snacks)},bottomBar={
+        Scaffold(modifier=Modifier.fillMaxSize().background(paper).statusBarsPadding(),
+            contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal+WindowInsetsSides.Bottom),
+            containerColor=paper,snackbarHost={SnackbarHost(snacks)},bottomBar={
             if(!typing)
             Column(Modifier.background(paper)){
                 if(tab==0 && detail==null)Button(onClick={tab=3},modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=4.dp),shape=RoundedCornerShape(13.dp)){
@@ -170,30 +172,32 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
 @Composable fun Today(b:Book,d:LocalDate,open:(String)->Unit,reset:()->Unit,resume:(String)->Unit,resumeSession:(String,String)->Unit){
     LocalPages.current
     val reports=b.reports(d.toString()).associateBy { it.getString("kind") };val p=b.prefs();val current=today(p)
-        val sc=p.getJSONObject("schedule")
-        val items=mutableListOf<AgendaItem>()
-        val sessions=b.rows("session",d.toString()).associate { it.item to ActivitySession.read(it.body) }
-        val kinds=(if(d<current)reports.keys+sessions.keys else sc.namesList()+reports.keys+sessions.keys).distinct()
-        kinds.forEach { k->
-            val r=reports[k];val rule=sc.optJSONObject(k)
-            val session=sessions[k]
-            if(session!=null){
-                val status=if(session.complete)"Completed" else "In progress"
-                items+=AgendaItem(session.time,k,session.title,listOf(status,session.excerpt()).filter { it.isNotBlank() }.joinToString(" · "))
-                return@forEach
-            }
-            if(d>=current && rule!=null && (!rule.optBoolean("enabled") || d.dayOfWeek.value !in rule.weekdays()))return@forEach
-            if(k.startsWith("activity-") && rule!=null){
-                items+=AgendaItem(rule.getString("time"),k,rule.getString("title"),"Planned")
-                return@forEach
-            }
-            val time=if(d<current)r?.optString("time") else rule?.optString("time")?:r?.optString("time")
-            items+=AgendaItem(time?:"",k,r?.optString("title")?:rule?.optString("title")?:k,(if(r?.optBoolean("demo")==true)"Demo · " else "")+(r?.optString("summary")?:if(k=="journal")"Return to today’s entry." else "Awaiting publication."))
+    val sc=p.getJSONObject("schedule")
+    val items=mutableListOf<AgendaItem>()
+    val sessions=b.rows("session",d.toString()).associate { it.item to ActivitySession.read(it.body) }
+    val kinds=(if(d<current)reports.keys+sessions.keys else sc.namesList()+reports.keys+sessions.keys).distinct()
+    kinds.forEach { k->
+        val r=reports[k];val rule=sc.optJSONObject(k)
+        val session=sessions[k]
+        if(session!=null){
+            val status=if(session.complete)"Completed" else "In progress"
+            items+=AgendaItem(session.time,k,session.title,listOf(status,session.excerpt()).filter { it.isNotBlank() }.joinToString(" · "))
+            return@forEach
         }
-        b.rows("reminder",d.toString()).forEach { val r=JSONObject(it.body);items+=AgendaItem(r.getString("time"),it.item,r.getString("title"),"Personal reminder") }
-        val previous=b.rows("draft").filter { it.day<d.toString() && it.body.isNotBlank() }.maxByOrNull { it.day }
-        val unfinished=b.rows("session").filter { it.day<d.toString() }.sortedByDescending { it.day }
-            .map { it to ActivitySession.read(it.body) }.filterNot { it.second.complete }
+        if(d>=current && rule!=null && (!rule.optBoolean("enabled") || d.dayOfWeek.value !in rule.weekdays()))return@forEach
+        if(k.startsWith("activity-") && rule!=null){
+            items+=AgendaItem(rule.getString("time"),k,rule.getString("title"),"Planned")
+            return@forEach
+        }
+        val time=if(d<current)r?.optString("time") else rule?.optString("time")?:r?.optString("time")
+        items+=AgendaItem(time?:"",k,r?.optString("title")?:rule?.optString("title")?:k,r?.optString("summary")?:if(k=="journal")"Return to today’s entry." else "Awaiting publication.")
+    }
+    b.rows("reminder",d.toString()).forEach { val r=JSONObject(it.body);items+=AgendaItem(r.getString("time"),it.item,r.getString("title"),"Personal reminder") }
+    val previous=b.rows("draft").filter { it.day<d.toString() && it.body.isNotBlank() }.maxByOrNull { it.day }
+    val unfinished=b.rows("session").filter { it.day<d.toString() }
+        .map { it to ActivitySession.read(it.body) }.filterNot { it.second.complete }
+        .sortedWith(compareByDescending<Pair<Page,ActivitySession>> { it.first.day }.thenByDescending { it.second.time })
+    val journalFirst=previous!=null && (unfinished.isEmpty() || previous.day>unfinished.first().first.day)
     val sorted=items.sortedWith(compareBy<AgendaItem>{it.time}.thenBy { sc.namesList().indexOf(it.id) })
     var now by remember {mutableStateOf(LocalTime.now(ZoneId.of(p.getString("zone"))))}
     LaunchedEffect(d,p.optString("zone")){while(true){now=LocalTime.now(ZoneId.of(p.getString("zone")));delay(30000)}}
@@ -205,11 +209,15 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
         if(unfinished.isNotEmpty() || previous!=null){
             Heading("Pick up unfinished work")
             CardBox {
-                (if(showOlder)unfinished else unfinished.take(1)).forEach { (row,session)->
+                if(previous!=null && journalFirst){
+                    Body(b.get("draft",previous.day,"unresolved").ifBlank { previous.body }.take(160))
+                    Action("Reopen journal · "+previous.day){resume(previous.day)}
+                }
+                (if(showOlder)unfinished else if(journalFirst)emptyList() else unfinished.take(1)).forEach { (row,session)->
                     Action("Resume "+session.title+" · "+row.day){resumeSession(row.day,row.item)}
                     session.excerpt().takeIf { it.isNotEmpty() }?.let { Caption(it) }
                 }
-                if(previous!=null && (unfinished.isEmpty() || showOlder)){
+                if(previous!=null && !journalFirst && showOlder){
                     val question=b.get("draft",previous.day,"unresolved")
                     Body(question.ifBlank { previous.body }.take(160))
                     Action("Reopen journal · "+previous.day){resume(previous.day)}
@@ -231,11 +239,13 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     val r=b.reports(d.toString()).firstOrNull { it.optString("kind")==kind }
     val reminder=b.rows("reminder",d.toString()).firstOrNull { it.item==kind }
     Screen {
-        Action("← Agenda",back)
-        Heading(r?.optString("title")?:reminder?.let { JSONObject(it.body).optString("title") }?:b.prefs().getJSONObject("schedule").optJSONObject(kind)?.optString("title")?:kind)
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+            TextButton(onClick=back){Mark(R.drawable.ic_back,Modifier.size(17.dp));Spacer(Modifier.width(5.dp));Text("Agenda")}
+            if(reminder==null && d==today(b.prefs()))IconAction(R.drawable.ic_refresh,"Refresh report",refresh)
+        }
+        PageTitle(r?.optString("title")?:reminder?.let { JSONObject(it.body).optString("title") }?:b.prefs().getJSONObject("schedule").optJSONObject(kind)?.optString("title")?:kind)
         if(reminder!=null){Body(JSONObject(reminder.body).optString("time")+" · "+d);return@Screen}
         if(r==null)Body("No published report for this date.")
-        if(d==today(b.prefs()))Action("Refresh report",refresh)
         if(r!=null){
             if(r.optBoolean("demo"))Caption("ILLUSTRATIVE DEMO · sample conditions and events")
             CardBox { Body(r.optString("summary")) }

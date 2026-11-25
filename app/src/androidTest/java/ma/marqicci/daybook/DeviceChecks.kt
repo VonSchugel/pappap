@@ -87,8 +87,11 @@ class DeviceChecks {
             .put("title","New experiment").put("prompts",org.json.JSONArray(listOf("New question"))).put("enabled",false) }
         ui.onNodeWithText("Resume Bench experiment · "+prior).performScrollTo().performClick()
         ui.onNodeWithText("Measured five step responses.").assertExists()
-        ui.onNodeWithText("Mark complete").performScrollTo().performClick()
-        ui.waitUntil(10000){ActivitySession.read(b.get("session",prior,id)).complete}
+        ui.onNodeWithText(nice(LocalDate.parse(prior),"EEEE, MMMM d, yyyy")+" · "+ActivitySession.read(snapshot).time).assertExists()
+        ui.onNodeWithText("Mark complete").performScrollTo().assertIsDisplayed().performClick()
+        ui.waitForIdle()
+        Assert.assertTrue("Expected completed session on "+prior+"; records="+b.rows("session").map { it.day to ActivitySession.read(it.body).complete },
+            ActivitySession.read(b.get("session",prior,id)).complete)
         Assert.assertFalse(ActivitySession.read(b.get("session",day.toString(),id)).complete)
         Assert.assertTrue(b.markdown(prior).contains("### What I tried\n\nMeasured five step responses."))
         ui.onNodeWithText("← Agenda").performScrollTo().performClick()
@@ -182,6 +185,16 @@ class DeviceChecks {
         ui.onNodeWithTag("nav-0").performClick()
         ui.onNodeWithTag("nav-2").performClick()
         ui.onNodeWithText("Save to journal").assertIsDisplayed()
+    }
+
+    @Test fun reopenBriefAfterProcessStop(){
+        ui.waitUntil(10000){ctx.book.ready.value}
+        ui.onNodeWithTag("nav-2").performClick()
+        ui.onNodeWithText("Save to journal").assertIsDisplayed()
+        if(ui.onAllNodesWithText("Edition start").fetchSemanticsNodes().isNotEmpty()){
+            ui.onNodeWithText("Edition start").performClick()
+        }
+        ui.onNode(isSelectable() and hasText("Robotics")).performScrollTo().assertIsSelected()
     }
 }
 

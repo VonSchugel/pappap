@@ -1,0 +1,6 @@
+<resources>
+    <style name="DaybookWindow" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#101A17</item>
+        <item name="android:colorAccent">#A0D6BF</item>
+    </style>
+</resources>

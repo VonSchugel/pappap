@@ -6,6 +6,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -25,6 +27,11 @@ import java.time.LocalDate
     var filter by rememberSaveable(d.toString()){
         mutableStateOf(b.connection.getString(filterKey,"All")?.takeIf { it in options } ?: "All")
     }
+    fun selectTopic(topic:String){
+        b.connection.edit().putString(filterKey,topic).apply()
+        filter=topic
+    }
+    val scope=rememberCoroutineScope()
     var prefs by remember {mutableStateOf(false)}
     val stories=if(filter=="Saved") b.rows("bookmark").map { JSONObject(it.body) } else edition?.arr("stories")?.objects().orEmpty()
     val visible=stories.filter { filter in listOf("All","Saved") || it.optString("topic")==filter }
@@ -40,40 +47,62 @@ import java.time.LocalDate
                 onDispose { if(scroll.maxValue!=Int.MAX_VALUE)b.connection.edit().putInt(positionKey,scroll.value).apply() }
             }
         }
-        Screen(scroll=scroll){
-            Column {
-                Eyebrow(nice(d,"EEEE · MMMM d"))
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                    Box(Modifier.weight(1f)){PageTitle("Tech Brief")}
-                    IconAction(R.drawable.ic_sliders,"Edition preferences"){prefs=true}
-                    if(d==today(b.prefs()))IconAction(R.drawable.ic_refresh,"Refresh edition",refresh)
+        val threshold=with(LocalDensity.current){200.dp.roundToPx()}
+        val reading by remember(scroll,threshold){derivedStateOf { scroll.value>threshold }}
+        var choosingTopic by remember {mutableStateOf(false)}
+        Column(Modifier.fillMaxSize()){
+            if(reading){
+                Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween,
+                    verticalAlignment=Alignment.CenterVertically){
+                    TextButton(onClick={scope.launch{scroll.animateScrollTo(0)}}){Text("Edition start")}
+                    Box {
+                        TextButton(onClick={choosingTopic=true}){
+                            Mark(R.drawable.ic_sliders,Modifier.size(16.dp));Spacer(Modifier.width(5.dp))
+                            Text(if(filter=="All")"All topics" else filter)
+                        }
+                        DropdownMenu(expanded=choosingTopic,onDismissRequest={choosingTopic=false}){
+                            options.forEach { topic->DropdownMenuItem(text={Text(topic)},onClick={choosingTopic=false;selectTopic(topic)}) }
+                        }
+                    }
                 }
-                if(edition!=null){
-                    val count=edition.arr("stories").length()
-                    Caption((if(edition.optBoolean("demo"))"Demo edition · " else "")+count+(if(count==1)" story" else " stories"))
-                }
-            }
-            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                options.forEach { t->FilterChip(selected=filter==t,onClick={
-                    b.connection.edit().putString(filterKey,t).apply();filter=t
-                },label={Text(t)}) }
-            }
-            if(filter!="Saved") edition?.arr("gaps")?.texts()?.takeIf { it.isNotEmpty() }?.let { Caption(it.joinToString("\n")) }
-            if(visible.isEmpty())Body(if(filter=="Saved")"Bookmarked stories appear here." else "No stories available for this selection.")
-            visible.forEachIndexed { i,s->
-                val topic=s.optString("topic")
-                if(filter=="All"){
-                    if(i==0)Eyebrow("Lead story · "+topic,leaf)
-                    else if(i==1 || visible[i-1].optString("topic")!=topic)Eyebrow(topic,leaf)
-                }
-                key(s.getString("url")){ Story(b,d,s,lead=i==0 && filter=="All") }
                 Rule()
+            }
+            Box(Modifier.weight(1f)){
+                Screen(scroll=scroll){
+                    Column {
+                        Eyebrow(nice(d,"EEEE · MMMM d"))
+                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                            Box(Modifier.weight(1f)){PageTitle("Tech Brief")}
+                            IconAction(R.drawable.ic_sliders,"Edition preferences"){prefs=true}
+                            if(d==today(b.prefs()))IconAction(R.drawable.ic_refresh,"Refresh edition",refresh)
+                        }
+                        if(edition!=null){
+                            val count=edition.arr("stories").length()
+                            Caption((if(edition.optBoolean("demo"))"Demo edition · " else "")+count+(if(count==1)" story" else " stories"))
+                        }
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                        options.forEach { t->FilterChip(selected=filter==t,onClick={selectTopic(t)},label={Text(t)}) }
+                    }
+                    if(filter!="Saved") edition?.arr("gaps")?.texts()?.takeIf { it.isNotEmpty() }?.let { Caption(it.joinToString("\n")) }
+                    if(visible.isEmpty())Body(if(filter=="Saved")"Bookmarked stories appear here." else "No stories available for this selection.")
+                    visible.forEachIndexed { i,s->
+                        val topic=s.optString("topic")
+                        if(filter=="All"){
+                            if(i==0)Eyebrow("Lead story · "+topic,leaf)
+                            else if(i==1 || visible[i-1].optString("topic")!=topic)Eyebrow(topic,leaf)
+                        }
+                        key(s.getString("url")){ Story(b,d,s,lead=i==0 && filter=="All") }
+                        Rule()
+                    }
+                }
             }
         }
     }
     if(prefs)NewsSettings(b){prefs=false}
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun Story(b:Book,d:LocalDate,s:JSONObject,lead:Boolean){
     LocalPages.current
     val id=identity(s.getString("url"))
@@ -98,7 +127,7 @@ import java.time.LocalDate
         }
         Caption(s.optString("access"));Web("Primary source",s.getString("url"))
         s.arr("links").objects().filter { it.getString("url")!=s.getString("url") }.forEach { Web(it.getString("title"),it.getString("url")) }
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
+        FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
             TextButton(onClick={
                 if(saved)b.rows("bookmark").firstOrNull { it.item==id }?.let(b::remove) else b.put("bookmark","",id,s.toString())
             }){Mark(if(saved)R.drawable.ic_check else R.drawable.ic_save,Modifier.size(16.dp));Spacer(Modifier.width(5.dp));Text(if(saved)"Bookmarked" else "Bookmark")}

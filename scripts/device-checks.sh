@@ -40,6 +40,8 @@ run_case resumeAndCompleteAfterRestart
 run_case nextWeeklyRunAndLegacyDaily
 run_case focusedJournalUsesDraft
 run_case resumeEditionAfterRestart
+adb shell am force-stop "$package"
+run_case reopenBriefAfterProcessStop
 adb install -r app/build/outputs/apk/preview/app-preview.apk
 adb shell pm path "$package.preview"
 adb shell pm path "$package"

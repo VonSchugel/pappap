@@ -135,7 +135,15 @@ data class ActivitySession(
         if (session == null) { Body("This activity is unavailable."); return@Screen }
         Caption(nice(day, "EEEE, MMMM d, yyyy") + " · " + session.time)
         Heading(session.title)
-        Caption(if (session.complete) "Completed" else if (stored.isEmpty()) "Planned" else "In progress")
+        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){
+            Box(Modifier.weight(1f)){StatusLine(
+                if(session.complete)"Completed" else if(stored.isEmpty())"Planned" else "In progress",
+                if(session.complete)R.drawable.ic_check else R.drawable.ic_clock)}
+            OutlinedButton(onClick={
+                val latest=b.get("session",date,id).takeIf { it.isNotEmpty() }?.let { ActivitySession.read(it) } ?: session
+                save(latest.copy(complete=!latest.complete))
+            }) { Text(if(session.complete)"Reopen session" else "Mark complete") }
+        }
         session.prompts.forEachIndexed { i, prompt ->
             key(i) {
                 if (session.complete) {
@@ -152,10 +160,6 @@ data class ActivitySession(
             }
         }
         if (stored.isEmpty()) Action("Start session") { save(session) }
-        Button(onClick = {
-            val latest = b.get("session", date, id).takeIf { it.isNotEmpty() }?.let { ActivitySession.read(it) } ?: session
-            save(latest.copy(complete = !session.complete))
-        }) { Text(if (session.complete) "Reopen session" else "Mark complete") }
         if (stored.isNotEmpty()) {
             val saved by b.saved.collectAsState()
             Caption(if (b.error.value.isNotEmpty()) b.error.value else if (saved >= b.queued) "Saved on this device" else "Saving…")

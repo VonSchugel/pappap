@@ -2,6 +2,12 @@
 
 Marqicci is a single-user native Android daybook for Mohammedia. Today, Schedule, Tech Brief and Journal share a local calendar date. The first launch creates one labeled example day. Select **Continue journal**, type a paragraph, and wait for **Saved on this device**. Use the date button to reopen an earlier page. Journal drafts, observations, bookmarks, passages and essays live in Room on the phone.
 
+## Reading and writing in version 0.3
+
+Today shows the next scheduled item in local time and offers unfinished work above the agenda. Tap an agenda row for the full report. On the weather page, expand **Hourly forecast** for the detailed readings. In Schedule, tap a recurring item to change it or check its next run.
+
+Tech Brief remembers the reading position for each topic and date on this device. In Journal, **Focus writing** opens one section at a time. **All sections** returns to the complete entry. Both views edit the same offline draft. Search opens the archive, and the overflow menu contains questions, essays, curriculum and Markdown export.
+
 ## Install the debug app
 
 Android 8.0 (API 26) or later is required. Download **app-debug.apk** under Artifacts on a successful Android CI run while signed in to GitHub. Open the APK on the phone, or use `adb install -r app-debug.apk`. A build on a different machine may use a different debug signing key. Export existing entries before uninstalling an earlier build. Android clears local journal data on uninstall.

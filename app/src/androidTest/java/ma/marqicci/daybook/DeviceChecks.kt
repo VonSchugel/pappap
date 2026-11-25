@@ -108,5 +108,80 @@ class DeviceChecks {
         val legacy=ActivitySession.fromRule(JSONObject().put("title","Daily").put("time","09:00"))
         Assert.assertEquals(listOf("Notes","Next step"),legacy.prompts)
     }
+
+    private fun capture(name:String){
+        ui.waitForIdle()
+        val bitmap=checkNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        try {
+            java.io.File(ctx.cacheDir,"ui-"+name+".png").outputStream().use {
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it))
+            }
+        } finally { bitmap.recycle() }
+    }
+
+    @Test fun captureScreens(){
+        ui.waitUntil(10000){ctx.book.ready.value}
+        for((index,name) in listOf("today","schedule","brief","journal").withIndex()){
+            ui.onNodeWithTag("nav-"+index).performClick()
+            capture(name)
+        }
+        ui.onNodeWithText("Focus writing").performClick()
+        capture("focus")
+    }
+
+    @Test fun largerDarkToday(){
+        ui.waitUntil(10000){ctx.book.ready.value}
+        ui.onNodeWithText("Continue journal").assertIsDisplayed()
+        ui.onNodeWithTag("nav-3").assertIsDisplayed()
+        capture("dark-large")
+    }
+
+    @Test fun focusedJournalUsesDraft(){
+        openJournal()
+        ui.onNodeWithText("Focus writing").performClick()
+        ui.onNodeWithText(sample).assertExists()
+        ui.onNodeWithText("How I studied it").assertDoesNotExist()
+        ui.onNodeWithText("Next").performClick()
+        ui.onNodeWithText("How I studied it").performScrollTo().performTextReplacement("Compared two arguments.")
+        ui.waitUntil(10000){ctx.book.get("draft",today(ctx.book.prefs()).toString(),"method")=="Compared two arguments."}
+        ui.onNodeWithText("Previous").performScrollTo().performClick()
+        ui.onNodeWithText(sample).assertExists()
+        ui.onNodeWithText("All sections").performScrollTo().performClick()
+        ui.onNodeWithText("Compared two arguments.").assertExists()
+        ui.onNodeWithContentDescription("Journal tools").performScrollTo().performClick()
+        ui.onNodeWithText("Export Markdown").assertExists()
+    }
+
+    @Test fun scheduleAndHourlyDisclosure(){
+        ui.waitUntil(10000){ctx.book.ready.value}
+        ui.onNodeWithTag("nav-1").performClick()
+        ui.onNodeWithText("Notify on device").assertDoesNotExist()
+        ui.onNodeWithText("Mohammedia weather").performClick()
+        ui.onNodeWithText("Notify on device").assertExists()
+        ui.onNodeWithText("Mohammedia weather").performClick()
+        ui.onNodeWithText("Notify on device").assertDoesNotExist()
+        ui.onNodeWithTag("nav-0").performClick()
+        ui.onNodeWithText("Mohammedia weather").performScrollTo().performClick()
+        ui.onNodeWithText("00:00",substring=true).assertDoesNotExist()
+        ui.onNodeWithText("Hourly forecast").performScrollTo().performClick()
+        ui.onNodeWithText("00:00",substring=true).assertExists()
+    }
+
+    @Test fun resumeEditionAfterRestart(){
+        val d=today(ctx.book.prefs()).toString()
+        ui.waitUntil(10000){ctx.book.ready.value}
+        ui.onNodeWithTag("nav-2").performClick()
+        ui.onNodeWithText("Robotics").performScrollTo().performClick()
+        ui.onNodeWithText("Save to journal").performScrollTo()
+        val key="brief.position."+d+".Robotics"
+        ui.waitUntil(10000){ctx.book.connection.getInt(key,0)>0}
+        val position=ctx.book.connection.getInt(key,0)
+        ui.activityRule.scenario.recreate()
+        ui.onNodeWithText("Save to journal").assertIsDisplayed()
+        Assert.assertTrue(ctx.book.connection.getInt(key,0)>=position-8)
+        ui.onNodeWithTag("nav-0").performClick()
+        ui.onNodeWithTag("nav-2").performClick()
+        ui.onNodeWithText("Save to journal").assertIsDisplayed()
+    }
 }
 

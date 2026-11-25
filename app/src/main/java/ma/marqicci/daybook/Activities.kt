@@ -62,16 +62,15 @@ data class ActivitySession(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun WeekdaySelector(days: Set<Int>, change: (Set<Int>) -> Unit) {
     Caption("Repeat on")
-    for (row in DayOfWeek.values().toList().chunked(4)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            row.forEach { d ->
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            DayOfWeek.values().forEach { d ->
                 val selected = d.value in days
                 FilterChip(selected = selected, onClick = { change(if (selected) days - d.value else days + d.value) },
                     label = { Text(d.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)) })
             }
-        }
     }
     if (days.isEmpty()) Caption("Select at least one day.")
 }

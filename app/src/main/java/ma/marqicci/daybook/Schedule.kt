@@ -6,6 +6,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -21,22 +27,45 @@ import java.time.*
     var dialog by rememberSaveable { mutableStateOf("") }
     val permit=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){if(!it)status("Notification permission is off. You can enable it in Android settings.")}
     fun permission(){if(Build.VERSION.SDK_INT>=33)permit.launch(Manifest.permission.POST_NOTIFICATIONS)}
+    var expanded by rememberSaveable { mutableStateOf("") }
+    val zone=ZoneId.of(p.getString("zone"))
+    var now by remember(zone){mutableStateOf(ZonedDateTime.now(zone))}
+    LaunchedEffect(zone){while(true){now=ZonedDateTime.now(zone);delay(30000)}}
+    val active=activities(b).associateBy { it.id }
     Screen {
-        Heading("Schedule");Caption(p.getString("zone"))
-        schedule.namesList().forEach { id->
+        Column { Eyebrow(p.getString("zone"));PageTitle("Schedule") }
+        Button(onClick={dialog="recurring"}){
+            Mark(R.drawable.ic_plus,Modifier.size(17.dp));Spacer(Modifier.width(6.dp));Text("Add recurring activity")
+        }
+        Heading("Recurring items")
+        Column { schedule.namesList().sortedBy { schedule.getJSONObject(it).getString("time") }.forEach { id->
             val rule=schedule.getJSONObject(id);val enabled=rule.getBoolean("enabled")
             fun set(key:String,v:Any){b.settings { it.getJSONObject("schedule").getJSONObject(id).put(key,v) }}
-            CardBox {
-                Toggle(rule.getString("title"),enabled){set("enabled",it)}
-                ClockButton("Publication / reminder",rule.getString("time")){set("time",it)}
-                if(id.startsWith("activity-")) Action("Edit activity · "+describeDays(rule.weekdays())){dialog="edit/"+id}
-                else Action(describeDays(rule.weekdays())){dialog="days/"+id}
-                Toggle("Notify on device",rule.getBoolean("notify")){set("notify",it);if(it)permission()}
-                val next=activities(b).firstOrNull { it.id==id }?.next(ZonedDateTime.now(ZoneId.of(p.getString("zone"))))
-                Caption(next?.let {"Next · "+nice(it.toLocalDate(),"EEE, MMM d")+" at "+it.toLocalTime()}?:"Paused")
+            val next=active[id]?.next(now)
+            val isOpen=expanded==id
+            Column {
+                Row(Modifier.fillMaxWidth().semantics { stateDescription=if(isOpen)"Expanded" else "Collapsed" }
+                    .clickable(role=Role.Button){expanded=if(isOpen)"" else id}.padding(vertical=12.dp),
+                    horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){
+                    KindMark(id)
+                    Column(Modifier.weight(1f)){
+                        Text(rule.getString("title"),color=ink,fontSize=16.sp,fontWeight=FontWeight.SemiBold)
+                        Caption(if(enabled) describeDays(rule.weekdays()) else "Paused")
+                    }
+                    Text(rule.getString("time"),color=if(enabled)leaf else muted,fontSize=14.sp)
+                    Mark(if(isOpen)R.drawable.ic_down else R.drawable.ic_chevron,Modifier.size(16.dp),muted)
+                }
+                if(isOpen) CardBox {
+                    Caption(next?.let {"Next · "+nice(it.toLocalDate(),"EEE, MMM d")+" at "+it.toLocalTime()}?:"Paused")
+                    Toggle("Enabled",enabled){set("enabled",it)}
+                    ClockButton("Time",rule.getString("time")){set("time",it)}
+                    if(id.startsWith("activity-")) Action("Edit activity · "+describeDays(rule.weekdays())){dialog="edit/"+id}
+                    else Action("Repeat · "+describeDays(rule.weekdays())){dialog="days/"+id}
+                    Toggle("Notify on device",rule.getBoolean("notify")){set("notify",it);if(it)permission()}
+                }
+                Rule()
             }
-        }
-        Action("Add recurring activity"){dialog="recurring"}
+        } }
         Heading("Personal reminders")
         Action("Add reminder"){dialog="reminder"}
         b.rows("reminder").sortedBy { it.day+JSONObject(it.body).optString("time") }.forEach { row->

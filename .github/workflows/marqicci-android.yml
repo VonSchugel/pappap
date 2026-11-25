@@ -49,6 +49,43 @@ jobs:
           arch: x86_64
           profile: pixel_6
           script: cd "$BOOK_DIR" && bash scripts/device-checks.sh
+      - name: Save emulator screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-previews
+          path: ${{ env.BOOK_DIR }}/build/ui-review/*.png
+          if-no-files-found: warn
+      - name: Inspect demo screen layout
+        if: ${{ !cancelled() && contains(github.event.head_commit.message, '[visual review]') }}
+        run: |
+          cd "$BOOK_DIR"
+          python -m pip install -q pillow
+          python - <<'PY'
+          import base64, io, pathlib
+          from PIL import Image
+          root = pathlib.Path("build/ui-review")
+          for label, names in [("tabs", ["today","schedule","brief","journal"]), ("writing", ["focus","dark-large"])]:
+              screens = []
+              for name in names:
+                  path = root / (name + ".png")
+                  if path.exists():
+                      screen = Image.open(path).convert("RGB")
+                      screen.thumbnail((290, 690))
+                      screens.append(screen)
+              if not screens:
+                  continue
+              canvas = Image.new("RGB", (sum(s.width for s in screens),max(s.height for s in screens)), "white")
+              offset = 0
+              for screen in screens:
+                  canvas.paste(screen,(offset,0))
+                  offset += screen.width
+              data = io.BytesIO()
+              canvas.save(data, format="JPEG", quality=72, optimize=True)
+              encoded = base64.b64encode(data.getvalue()).decode()
+              for i in range(0,len(encoded),512):
+                  print("UI_PROOF_"+label+" "+encoded[i:i+512])
+          PY
   server:
     runs-on: ubuntu-latest
     steps:

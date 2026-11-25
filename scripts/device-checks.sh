@@ -14,7 +14,21 @@ run_case() {
 }
 adb shell svc wifi disable
 adb shell svc data disable
-trap 'adb shell svc wifi enable; adb shell svc data enable' EXIT
+trap 'adb shell svc wifi enable; adb shell svc data enable; adb shell cmd uimode night no; adb shell settings put system font_scale 1.0' EXIT
+mkdir -p build/ui-review
+run_case captureScreens
+for screen in today schedule brief journal focus; do
+  adb exec-out run-as "$package" cat "cache/ui-$screen.png" > "build/ui-review/$screen.png"
+done
+adb shell cmd uimode night yes
+adb shell settings put system font_scale 1.5
+adb shell am force-stop "$package"
+run_case largerDarkToday
+adb exec-out run-as "$package" cat cache/ui-dark-large.png > build/ui-review/dark-large.png
+adb shell cmd uimode night no
+adb shell settings put system font_scale 1.0
+adb shell am force-stop "$package"
+run_case scheduleAndHourlyDisclosure
 run_case writeOffline
 adb shell am force-stop "$package"
 run_case readAfterForceStop
@@ -24,6 +38,8 @@ run_case createProjectSessionOffline
 adb shell am force-stop "$package"
 run_case resumeAndCompleteAfterRestart
 run_case nextWeeklyRunAndLegacyDaily
+run_case focusedJournalUsesDraft
+run_case resumeEditionAfterRestart
 adb install -r app/build/outputs/apk/preview/app-preview.apk
 adb shell pm path "$package.preview"
 adb shell pm path "$package"

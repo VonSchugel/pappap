@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -41,6 +44,12 @@ fun parseCurriculum(raw:String):List<String>{
     var dialog by rememberSaveable { mutableStateOf("") }
     var selection by remember { mutableStateOf<Selection?>(null) }
     val saved by b.saved.collectAsState()
+    val sections=b.sections()
+    var focused by rememberSaveable(date){mutableStateOf<String?>(null)}
+    var menu by remember {mutableStateOf(false)}
+    val focusIndex=sections.indexOfFirst { it.first==focused }
+    val isFocused=focusIndex>=0
+    val visible=if(isFocused) listOf(sections[focusIndex]) else sections
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")){uri->
         if(uri!=null){val body=b.markdown(date);scope.launch {
             runCatching { withContext(Dispatchers.IO){requireNotNull(ctx.contentResolver.openOutputStream(uri,"wt")).bufferedWriter().use { it.write(body) }} }
@@ -48,27 +57,57 @@ fun parseCurriculum(raw:String):List<String>{
         }}
     }
     Screen {
-        Caption(nice(d,"EEEE · d MMMM yyyy").uppercase())
-        Heading("Intellectual journal")
-        Caption(if(b.error.value.isNotEmpty())b.error.value else if(saved>=b.queued)"Saved on this device" else "Saving on this device…")
-        Row(Modifier.horizontalScroll(rememberScrollState())){Action("Find an entry"){dialog="search"};Action("Questions"){dialog="questions"};Action("Essay workshops"){dialog="essays"}}
+        Column(verticalArrangement=Arrangement.spacedBy(3.dp)){
+            Eyebrow(nice(d,"EEEE · d MMMM yyyy"))
+            PageTitle("Intellectual journal")
+            StatusLine(if(b.error.value.isNotEmpty()) b.error.value else if(saved>=b.queued)"Saved on this device" else "Saving…",
+                if(saved>=b.queued && b.error.value.isEmpty())R.drawable.ic_check else R.drawable.ic_clock)
+        }
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            OutlinedButton(onClick={focused=if(isFocused)null else sections.firstOrNull()?.first}){
+                Mark(R.drawable.ic_focus,Modifier.size(17.dp));Spacer(Modifier.width(7.dp))
+                Text(if(isFocused)"All sections" else "Focus writing")
+            }
+            Spacer(Modifier.weight(1f))
+            IconAction(R.drawable.ic_search,"Find an entry"){dialog="search"}
+            Box {
+                IconAction(R.drawable.ic_more,"Journal tools"){menu=true}
+                DropdownMenu(expanded=menu,onDismissRequest={menu=false}){
+                    for((label,key) in listOf("Questions" to "questions","Essay workshops" to "essays","Link another entry" to "link",
+                        "Customize sections" to "sections","Import or edit curriculum" to "curriculum")){
+                        DropdownMenuItem(text={Text(label)},onClick={menu=false;dialog=key})
+                    }
+                    DropdownMenuItem(text={Text("Export Markdown")},onClick={menu=false;export.launch("Journal-"+date+".md")})
+                }
+            }
+        }
+        if(isFocused){
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
+                TextButton(enabled=focusIndex>0,onClick={focused=sections[focusIndex-1].first}){Text("Previous")}
+                Caption("Section "+(focusIndex+1)+" of "+sections.size)
+                TextButton(enabled=focusIndex<sections.lastIndex,onClick={focused=sections[focusIndex+1].first}){Text("Next")}
+            }
+        }
         val curr=b.get("meta","","curriculum")
-        if(curr.isNotBlank()){
+        if(!isFocused && curr.isNotBlank()){
             val c=JSONObject(curr);val delta=ChronoUnit.DAYS.between(LocalDate.parse(c.getString("start")),d)
             val i=if(delta<0)-1 else (delta/c.getInt("pace")).toInt()
             if(i in 0 until c.arr("days").length())CardBox { Caption("CURRICULUM · DAY "+(i+1));Body(c.getJSONArray("days").getString(i));Action("Edit curriculum"){dialog="curriculum"} }
         }
-        b.sections().forEach { (id,title)->key(id){
+        visible.forEach { (id,title)->key(id){
             var value by remember(date,id) { mutableStateOf(TextFieldValue(b.get("draft",date,id))) }
             OutlinedTextField(value=value,onValueChange={v->
                 if(v.text!=value.text)b.put("draft",date,id,v.text)
                 value=v
-            },label={Text(title)},modifier=Modifier.fillMaxWidth(),minLines=3)
+            },label={Text(title)},modifier=Modifier.fillMaxWidth(),minLines=if(isFocused)8 else 2,
+                shape=RoundedCornerShape(12.dp),textStyle=MaterialTheme.typography.bodyLarge.copy(fontFamily=FontFamily.Serif,fontSize=18.sp,lineHeight=27.sp),
+                colors=OutlinedTextFieldDefaults.colors(focusedContainerColor=panel,unfocusedContainerColor=panel,unfocusedBorderColor=line))
             if(!value.selection.collapsed){
                 val start=value.selection.min;val end=value.selection.max
                 Action("Work with selected passage"){selection=Selection(id,value.text,start,end);dialog="feedback"}
             }
         }}
+        if(isFocused) return@Screen
         Field("Tags · comma separated",b.get("tags",date,"tags"),{b.put("tags",date,"tags",it)})
         b.rows("note",date).forEach { Body(it.body) }
         val annotations=b.rows("feedback",date)
@@ -81,16 +120,12 @@ fun parseCurriculum(raw:String):List<String>{
         }
         b.rows("link",date).forEach { row->Action("Related entry · "+row.body){go(LocalDate.parse(row.body))} }
         b.rows("question",date).forEach { Body("Open question · "+it.body) }
-        Rule()
-        Action("Carry a question forward"){dialog="questions"};Action("Link another entry"){dialog="link"}
-        Action("Customize sections"){dialog="sections"};Action("Import or edit curriculum"){dialog="curriculum"}
         val sessions=b.rows("session",date)
         if(sessions.isNotEmpty()) Heading("Activity sessions")
         sessions.forEach { row->
             val session=ActivitySession.read(row.body)
             Action(session.title+" · "+if(session.complete)"Completed" else "In progress"){openSession(row.item)}
         }
-        Action("Export Markdown"){export.launch("Journal-$date.md")}
     }
     when(dialog){
         "search"->Archive(b,{go(it);dialog=""},{dialog=""})

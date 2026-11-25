@@ -35,7 +35,7 @@ fun parseCurriculum(raw:String):List<String>{
     return t.lineSequence().map(String::trim).filter(String::isNotEmpty).toList()
 }
 
-@Composable fun Journal(b:Book,d:LocalDate,go:(LocalDate)->Unit,status:(String)->Unit){
+@Composable fun Journal(b:Book,d:LocalDate,go:(LocalDate)->Unit,openSession:(String)->Unit,status:(String)->Unit){
     LocalPages.current
     val date=d.toString();val ctx=LocalContext.current;val scope=rememberCoroutineScope()
     var dialog by rememberSaveable { mutableStateOf("") }
@@ -84,6 +84,12 @@ fun parseCurriculum(raw:String):List<String>{
         Rule()
         Action("Carry a question forward"){dialog="questions"};Action("Link another entry"){dialog="link"}
         Action("Customize sections"){dialog="sections"};Action("Import or edit curriculum"){dialog="curriculum"}
+        val sessions=b.rows("session",date)
+        if(sessions.isNotEmpty()) Heading("Activity sessions")
+        sessions.forEach { row->
+            val session=ActivitySession.read(row.body)
+            Action(session.title+" · "+if(session.complete)"Completed" else "In progress"){openSession(row.item)}
+        }
         Action("Export Markdown"){export.launch("Journal-$date.md")}
     }
     when(dialog){
@@ -104,10 +110,10 @@ fun parseCurriculum(raw:String):List<String>{
 @Composable fun Archive(b:Book,open:(LocalDate)->Unit,close:()->Unit){
     val rows=LocalPages.current
     var query by remember { mutableStateOf("") }
-    val dates=rows.filter { it.shelf in setOf("draft","tags","note","feedback","link","question","observation") && it.body.isNotBlank() }.map { it.day }.distinct().sortedDescending()
+    val dates=rows.filter { it.shelf in setOf("draft","tags","note","feedback","link","question","observation","session") && it.body.isNotBlank() }.map { it.day }.distinct().sortedDescending()
     Sheet("Journal archive",close){
         Field("Search entries, tags and notes",query,{query=it})
-        val matches=dates.filter { d->d.contains(query,true) || rows.any { it.day==d && it.shelf in setOf("draft","tags","note","feedback","question","observation") && it.body.contains(query,true) } }
+        val matches=dates.filter { d->d.contains(query,true) || rows.any { it.day==d && it.shelf in setOf("draft","tags","note","feedback","question","observation","session") && it.body.contains(query,true) } }
         if(matches.isEmpty())Caption("No matching entries.")
         matches.forEach { day->Action(day+" · "+b.rows("draft",day).firstOrNull { it.body.isNotBlank() }?.body.orEmpty().take(55)){open(LocalDate.parse(day))} }
     }

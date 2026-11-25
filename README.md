@@ -32,6 +32,18 @@ One phone owns the preferences in this single-user deployment. Offline edits are
 
 ## Reading and writing
 
+### Reusable activities
+
+In **Schedule → Add recurring activity**, choose **Study**, **Project**, **Writing**, **Review**, or **Custom**. Name the activity, choose a time and weekdays, then edit its prompts. Each occurrence opens a separate page in Today. Typing your first answer or choosing **Start session** saves a dated copy of the prompts and starts the session. **Mark complete** closes that date’s work. **Reopen session** lets you revise it.
+
+For a controls lab, choose **Project**, name it “Motor step response”, and replace the prompts with “Prediction”, “Measured response” and “Next experiment”. For a seminar, use **Writing** and make the prompts “Claim”, “Strongest objection” and “Revision”. Both activities can run on the same day and keep separate notes. An unfinished page from an earlier date appears under **Today → Pick up unfinished work**. Opening it resumes that original date. Saved sessions retain their title and prompts through later schedule edits.
+
+Session notes work offline and appear in the day’s journal Markdown export. Preferences sync to FastAPI, including weekdays for scheduled reports. Update the server with `docker compose up -d --build` to apply weekday changes to server publications.
+
+CI supplies two signed builds. **app-debug.apk** uses the original application ID. **app-preview.apk** installs as **Marqicci Activities** alongside the November 22 build and starts with a separate local notebook. Use the preview if you already have valuable entries and Android rejects an in-place debug update because the signing keys differ.
+
+### Journal, newsletter and events
+
 - **Tech Brief** groups stories by topic after the lead. Browse editions by date, filter by topic, bookmark a story, or save its headline and link to the selected day's journal. Edit the source toggles, follow lists and maximum edition length under **Preferences**.
 - **Journal** autosaves edits to Room. Long-press a passage, adjust the selection, and choose **Work with selected passage**. Offline prompts cover premises, inferences, objections and follow-up readings. An annotation retains the quote, selection offsets and original section revision. Edits continue in the same draft.
 - **Import or edit curriculum** accepts Markdown with `Day 1` or `Jour 1` headings, one prompt per line, a JSON array, or `{"days":[{"title":"Day 1","prompt":"Your actual reading prompt"}]}`. Import the original 28-day plan, inspect the count, set its start date and number of calendar days per prompt, then save. A two-day pace spans 56 calendar days for 28 prompts. No reconstructed personal curriculum is bundled.

@@ -12,6 +12,8 @@ import org.junit.*
 import org.junit.runner.RunWith
 import java.time.*
 import org.json.JSONObject
+import java.util.Locale
+import java.time.format.TextStyle
 
 @RunWith(AndroidJUnit4::class)
 class DeviceChecks {
@@ -51,6 +53,60 @@ class DeviceChecks {
         val plan=(1..28).joinToString("\n"){"## Day $it\nInvestigate argument $it.\n"}
         Assert.assertEquals(28,parseCurriculum(plan).size)
         Assert.assertTrue(parseCurriculum(plan).last().contains("argument 28"))
+    }
+
+    @Test fun createProjectSessionOffline(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        ui.onNodeWithText("Schedule").performClick()
+        ui.onNodeWithText("Add recurring activity").performScrollTo().performClick()
+        ui.onNodeWithText("Project",useUnmergedTree=false).performClick()
+        ui.onNodeWithText("Activity name").performScrollTo().performTextReplacement("Bench experiment")
+        val day=today(b.prefs())
+        val skipped=day.plusDays(1).dayOfWeek
+        ui.onNodeWithText(skipped.getDisplayName(TextStyle.SHORT,Locale.ENGLISH)).performScrollTo().performClick()
+        ui.onNodeWithText("Create activity").performScrollTo().performClick()
+        ui.onNodeWithText("Today").performClick()
+        ui.onNodeWithText("Bench experiment").performScrollTo().performClick()
+        ui.onNodeWithText("What I tried").performScrollTo().performTextReplacement("Measured five step responses.")
+        val id=activities(b).single{it.title=="Bench experiment"}.id
+        Assert.assertFalse(skipped.value in activities(b).single{it.id==id}.weekdays)
+        ui.waitUntil(10000){b.get("session",day.toString(),id).contains("five step responses") && b.saved.value>=b.queued}
+    }
+
+    @Test fun resumeAndCompleteAfterRestart(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs())
+        val id=activities(b).single{it.title=="Bench experiment"}.id
+        val prior=day.minusDays(1).toString()
+        val snapshot=b.get("session",day.toString(),id)
+        Assert.assertTrue(snapshot.contains("five step responses"))
+        b.put("session",prior,id,snapshot)
+        b.settings { it.getJSONObject("schedule").getJSONObject(id)
+            .put("title","New experiment").put("prompts",org.json.JSONArray(listOf("New question"))).put("enabled",false) }
+        ui.onNodeWithText("Resume Bench experiment · "+prior).performScrollTo().performClick()
+        ui.onNodeWithText("Measured five step responses.").assertExists()
+        ui.onNodeWithText("Mark complete").performScrollTo().performClick()
+        ui.waitUntil(10000){ActivitySession.read(b.get("session",prior,id)).complete}
+        Assert.assertFalse(ActivitySession.read(b.get("session",day.toString(),id)).complete)
+        Assert.assertTrue(b.markdown(prior).contains("### What I tried\n\nMeasured five step responses."))
+        ui.onNodeWithText("← Agenda").performScrollTo().performClick()
+        ui.onNodeWithText("Return to today").performScrollTo().performClick()
+        ui.onNodeWithText("Resume Bench experiment · "+prior).assertDoesNotExist()
+        ui.onNodeWithText("Bench experiment").performScrollTo().performClick()
+        ui.onNodeWithText("What I tried").assertExists()
+        ui.onNodeWithText("New question").assertDoesNotExist()
+    }
+
+    @Test fun nextWeeklyRunAndLegacyDaily(){
+        val zone=ZoneId.of("Africa/Casablanca")
+        val after=LocalDate.of(2026,11,27).atTime(10,0).atZone(zone)
+        val rule=ActivityTime("lab","Lab",LocalTime.of(9,0),null,true,setOf(1,5))
+        Assert.assertEquals(LocalDate.of(2026,11,30),rule.next(after)!!.toLocalDate())
+        Assert.assertEquals(LocalDate.of(2026,11,28),rule.copy(weekdays=JSONObject().weekdays()).next(after)!!.toLocalDate())
+        val legacy=ActivitySession.fromRule(JSONObject().put("title","Daily").put("time","09:00"))
+        Assert.assertEquals(listOf("Notes","Next step"),legacy.prompts)
     }
 }
 

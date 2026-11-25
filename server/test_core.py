@@ -71,6 +71,15 @@ class Engine(unittest.TestCase):
         p=prefs();p["zone"]="Europe/Paris";p["schedule"]["tech"]["time"]="00:00";self.store.save(p)
         self.store.tick(datetime(2026,11,21,23,1,tzinfo=timezone.utc),{"tech":lambda *_:{"summary":"new day"}})
         self.assertEqual(len(self.store.day(D)),1)
+    def test_weekly_schedule_uses_local_weekday(self):
+        p=prefs()
+        p["zone"]="Asia/Tokyo"
+        p["schedule"]["tech"].update(time="00:00",weekdays=[1])
+        self.store.save(p)
+        registry={"tech":lambda *_:{"summary":"Monday edition"}}
+        self.assertEqual(self.store.tick(datetime(2026,11,22,14,59,tzinfo=timezone.utc),registry),{})
+        self.assertIn("tech",self.store.tick(datetime(2026,11,22,15,1,tzinfo=timezone.utc),registry))
+        self.assertEqual(len(self.store.day("2026-11-23")),1)
     def test_failed_refresh_keeps_original(self):
         self.store.generate(D,"tech",prefs(),registry={"tech":lambda *_:{"summary":"cached"}})
         with self.assertRaises(TimeoutError):

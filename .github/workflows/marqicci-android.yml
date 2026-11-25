@@ -22,12 +22,20 @@ jobs:
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;34.0.0" "build-tools;35.0.0"'
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble debug and instrumentation APKs
-        run: cd "$BOOK_DIR" && bash gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+        run: cd "$BOOK_DIR" && bash gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :app:assemblePreview
       - name: Verify APK signature
-        run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$BOOK_DIR/app/build/outputs/apk/debug/app-debug.apk"'
+        run: |
+          for variant in debug preview; do
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$BOOK_DIR/app/build/outputs/apk/$variant/app-$variant.apk"
+          done
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ env.BOOK_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.BOOK_DIR }}/app/build/outputs/apk/preview/app-preview.apk
           archive: false
           if-no-files-found: error
       - name: Enable emulator acceleration

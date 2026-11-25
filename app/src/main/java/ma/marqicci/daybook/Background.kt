@@ -14,17 +14,23 @@ import java.time.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 
-data class ActivityTime(val id:String,val title:String,val clock:LocalTime,val date:LocalDate?,val notify:Boolean){
+data class ActivityTime(val id:String,val title:String,val clock:LocalTime,val date:LocalDate?,val notify:Boolean,val weekdays:Set<Int> = everyDay){
     fun next(now:ZonedDateTime):ZonedDateTime?{
-        val first=(date?:now.toLocalDate()).atTime(clock).atZone(now.zone)
-        return if(first.isAfter(now)) first else if(date==null) first.plusDays(1) else null
+        if(date!=null) return date.atTime(clock).atZone(now.zone).takeIf { it.isAfter(now) }
+        for(offset in 0L..7L){
+            val day=now.toLocalDate().plusDays(offset)
+            if(day.dayOfWeek.value !in weekdays) continue
+            val run=day.atTime(clock).atZone(now.zone)
+            if(run.isAfter(now)) return run
+        }
+        return null
     }
 }
 fun activities(b:Book):List<ActivityTime>{
     val schedule=b.prefs().getJSONObject("schedule")
     return schedule.namesList().mapNotNull { id->
         val r=schedule.getJSONObject(id)
-        if(!r.getBoolean("enabled")) null else ActivityTime(id,r.getString("title"),LocalTime.parse(r.getString("time")),null,r.getBoolean("notify"))
+        if(!r.getBoolean("enabled")) null else ActivityTime(id,r.getString("title"),LocalTime.parse(r.getString("time")),null,r.getBoolean("notify"),r.weekdays())
     }+b.rows("reminder").map { row->val r=JSONObject(row.body);ActivityTime(row.item,r.getString("title"),LocalTime.parse(r.getString("time")),LocalDate.parse(row.day),r.optBoolean("notify",true)) }
 }
 object Bells {
@@ -59,6 +65,7 @@ class Bell:BroadcastReceiver(){
                 val due=Instant.ofEpochMilli(at).atZone(zone)
                 val activity=activities(b).firstOrNull { it.id==id && it.notify } ?: return@execute
                 val d=due.toLocalDate()
+                if(activity.date==null && d.dayOfWeek.value !in activity.weekdays) return@execute
                 if((activity.date!=null && activity.date!=d) || d!=LocalDate.now(zone) || d.atTime(activity.clock).atZone(zone).toInstant()!=due.toInstant()) return@execute
                 val nm=context.getSystemService(NotificationManager::class.java)
                 nm.createNotificationChannel(NotificationChannel("agenda","Daily agenda",NotificationManager.IMPORTANCE_DEFAULT))

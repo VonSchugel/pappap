@@ -20,6 +20,15 @@ class ApiTests(unittest.TestCase):
                     p["schedule"]["weather"]["time"]="11:18"
                     self.assertEqual(client.put("/v1/preferences",json=p).status_code,200)
                     self.assertEqual(client.get("/v1/preferences").json()["schedule"]["weather"]["time"],"11:18")
+                    activity=dict(title="Bench log",time="15:00",enabled=True,notify=False,
+                                  weekdays=[1,3,5],prompts=["Hypothesis","Measurement"])
+                    p["schedule"]["activity-bench"]=activity
+                    self.assertEqual(client.put("/v1/preferences",json=p).status_code,200)
+                    self.assertEqual(client.get("/v1/preferences").json()["schedule"]["activity-bench"],activity)
+                    for bad in ({"weekdays":[]},{"weekdays":[1,1]},{"weekdays":[0]},{"prompts":["  "]}):
+                        p["schedule"]["activity-bench"]={**activity,**bad}
+                        self.assertEqual(client.put("/v1/preferences",json=p).status_code,422)
+                    p["schedule"]["activity-bench"]=activity
                     self.assertEqual(client.post("/v1/days/2000-01-01/refresh/weather").status_code,409)
                     p["swimEnd"]=p["swimStart"]
                     self.assertEqual(client.put("/v1/preferences",json=p).status_code,422)

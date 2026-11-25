@@ -2,7 +2,7 @@ import os
 import re
 import secrets
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -22,6 +22,18 @@ class Item(BaseModel):
     time: str=Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
     enabled:bool
     notify:bool
+    weekdays: list[Annotated[int, Field(strict=True, ge=1, le=7)]] = Field(default_factory=lambda: list(range(1,8)), min_length=1, max_length=7)
+    prompts: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(default_factory=lambda: ["Notes","Next step"], min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def unique_fields(self):
+        if any(prompt != prompt.strip() for prompt in self.prompts):
+            self.prompts = [prompt.strip() for prompt in self.prompts]
+        if "" in self.prompts or len(set(self.prompts)) != len(self.prompts):
+            raise ValueError("Session prompts must be distinct and nonempty")
+        if len(set(self.weekdays)) != len(self.weekdays):
+            raise ValueError("Repeat days must be distinct")
+        return self
 
 class Settings(BaseModel):
     model_config=ConfigDict(extra="forbid")
@@ -52,7 +64,7 @@ def preferences(): return store.prefs()
 
 @app.put("/v1/preferences")
 def update(value:Settings):
-    p=value.model_dump(); store.save(p); return p
+    p=value.model_dump(exclude_unset=True); store.save(p); return p
 
 @app.post("/v1/tick")
 def tick(): return store.tick()

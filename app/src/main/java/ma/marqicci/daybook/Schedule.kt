@@ -29,6 +29,8 @@ import java.time.*
             CardBox {
                 Toggle(rule.getString("title"),enabled){set("enabled",it)}
                 ClockButton("Publication / reminder",rule.getString("time")){set("time",it)}
+                if(id.startsWith("activity-")) Action("Edit activity · "+describeDays(rule.weekdays())){dialog="edit/"+id}
+                else Action(describeDays(rule.weekdays())){dialog="days/"+id}
                 Toggle("Notify on device",rule.getBoolean("notify")){set("notify",it);if(it)permission()}
                 val next=activities(b).firstOrNull { it.id==id }?.next(ZonedDateTime.now(ZoneId.of(p.getString("zone"))))
                 Caption(next?.let {"Next · "+nice(it.toLocalDate(),"EEE, MMM d")+" at "+it.toLocalTime()}?:"Paused")
@@ -54,13 +56,7 @@ import java.time.*
     }
     when(dialog){
         "newsletter"->NewsSettings(b){dialog=""}
-        "recurring"->{
-            var title by remember {mutableStateOf("")};var clock by remember {mutableStateOf("12:00")}
-            Sheet("Recurring activity",{dialog=""}){
-                Field("Activity name",title,{title=it});ClockButton("Daily time",clock){clock=it}
-                Button(enabled=title.isNotBlank(),onClick={b.settings { it.getJSONObject("schedule").put("activity-"+uid(),JSONObject().put("title",title.trim()).put("time",clock).put("enabled",true).put("notify",false)) };dialog=""}){Text("Add daily activity")}
-            }
-        }
+        "recurring"->ActivityEditor(b,null){dialog=""}
         "reminder"->{
             var title by remember { mutableStateOf("") };var d by remember { mutableStateOf(today(p)) };var t by remember { mutableStateOf("12:00") };var notify by remember { mutableStateOf(true) }
             Sheet("Personal reminder",{dialog=""}){
@@ -95,6 +91,18 @@ import java.time.*
                 Button(enabled=valid && token.isNotBlank(),onClick={b.connection.edit().putString("url",url.trim().trimEnd('/')).putString("key",token.trim()).commit();b.put("meta","","sync","Connecting…");SyncWorker.request(b.ctx);dialog="";status("Connection saved. Sync queued.")}){Text("Connect")}
                 Action("Use offline mode"){b.connection.edit().remove("url").remove("key").commit();b.put("meta","","sync","Disconnected");dialog=""}
             }
+        }
+    }
+    if(dialog.startsWith("edit/")) ActivityEditor(b,dialog.substringAfter("/")){dialog=""}
+    if(dialog.startsWith("days/")){
+        val id=dialog.substringAfter("/")
+        var days by remember(id){mutableStateOf(schedule.getJSONObject(id).weekdays())}
+        Sheet("Repeat "+schedule.getJSONObject(id).getString("title"),{dialog=""}){
+            WeekdaySelector(days){days=it}
+            Button(enabled=days.isNotEmpty(),onClick={
+                b.settings { it.getJSONObject("schedule").getJSONObject(id).put("weekdays",JSONArray(days.sorted())) }
+                dialog=""
+            }){Text("Save days")}
         }
     }
 }

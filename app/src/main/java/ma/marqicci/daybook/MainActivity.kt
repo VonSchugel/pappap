@@ -88,7 +88,7 @@ private val glyphs=listOf("◉","◷","▤","✎")
     var current by remember { mutableStateOf(today(p)) }
     var dayOverride by rememberSaveable { mutableStateOf(initialDay) }
     var tab by rememberSaveable { mutableIntStateOf(if(open=="journal")3 else if(open=="tech")2 else 0) }
-    var detail by rememberSaveable { mutableStateOf(open?.takeIf { it in listOf("weather","swim","hacks") }) }
+    var detail by rememberSaveable { mutableStateOf(open?.takeUnless { it == "journal" || it == "tech" }) }
     val day=dayOverride?.let(LocalDate::parse)?:current
     val scope=rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) };var message by remember { mutableStateOf("") }
@@ -128,18 +128,20 @@ private val glyphs=listOf("◉","◷","▤","✎")
                 if(message.isNotEmpty() || fatal.isNotEmpty())Text(fatal.ifEmpty { message },Modifier.padding(horizontal=20.dp,vertical=5.dp),fontSize=13.sp,color=clay)
                 key(tab,detail,day.toString()){
                     when {
+                        detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!){detail=null}
                         detail!=null->ReportScreen(b,day,detail!!,{detail=null},{sync(detail)})
-                        tab==0->Today(b,day,{k->if(k=="tech")tab=2 else if(k=="journal")tab=3 else detail=k},{dayOverride=null},{old->dayOverride=old;tab=3})
+                        tab==0->Today(b,day,{k->if(k=="tech")tab=2 else if(k=="journal")tab=3 else detail=k},{dayOverride=null},
+                            {old->dayOverride=old;tab=3},{old,id->dayOverride=old;detail=id})
                         tab==1->Schedule(b){message=it}
                         tab==2->Brief(b,day){sync("tech")}
-                        else->Journal(b,day,{dayOverride=it.toString()}){message=it}
+                        else->Journal(b,day,{dayOverride=it.toString()},{detail=it}){message=it}
                     }
                 }
             }
         }
     }
 }
-@Composable fun Today(b:Book,d:LocalDate,open:(String)->Unit,reset:()->Unit,resume:(String)->Unit){
+@Composable fun Today(b:Book,d:LocalDate,open:(String)->Unit,reset:()->Unit,resume:(String)->Unit,resumeSession:(String,String)->Unit){
     LocalPages.current
     val reports=b.reports(d.toString()).associateBy { it.getString("kind") };val p=b.prefs();val current=today(p)
     Screen {
@@ -157,10 +159,20 @@ private val glyphs=listOf("◉","◷","▤","✎")
         val sc=p.getJSONObject("schedule")
         data class RowItem(val time:String,val id:String,val title:String,val summary:String)
         val items=mutableListOf<RowItem>()
-        val kinds=if(d<current)reports.keys else (sc.namesList()+reports.keys).distinct()
+        val sessions=b.rows("session",d.toString()).associate { it.item to ActivitySession.read(it.body) }
+        val kinds=(if(d<current)reports.keys+sessions.keys else sc.namesList()+reports.keys+sessions.keys).distinct()
         kinds.forEach { k->
             val r=reports[k];val rule=sc.optJSONObject(k)
-            if(d>=current && rule?.optBoolean("enabled")==false)return@forEach
+            val session=sessions[k]
+            if(session!=null){
+                items+=RowItem(session.time,k,session.title,if(session.complete)"Completed" else "In progress")
+                return@forEach
+            }
+            if(d>=current && rule!=null && (!rule.optBoolean("enabled") || d.dayOfWeek.value !in rule.weekdays()))return@forEach
+            if(k.startsWith("activity-") && rule!=null){
+                items+=RowItem(rule.getString("time"),k,rule.getString("title"),"Planned")
+                return@forEach
+            }
             val time=if(d<current)r?.optString("time") else rule?.optString("time")?:r?.optString("time")
             items+=RowItem(time?:"",k,r?.optString("title")?:rule?.optString("title")?:k,(if(r?.optBoolean("demo")==true)"Demo · " else "")+(r?.optString("summary")?:if(k=="journal")"Return to today’s entry." else "Awaiting publication."))
         }
@@ -172,8 +184,13 @@ private val glyphs=listOf("◉","◷","▤","✎")
             };Rule()
         }
         val previous=b.rows("draft").filter { it.day<d.toString() && it.body.isNotBlank() }.maxByOrNull { it.day }
+        val unfinished=b.rows("session").filter { it.day<d.toString() }.sortedByDescending { it.day }
+            .map { it to ActivitySession.read(it.body) }.filterNot { it.second.complete }
+        if(previous!=null || unfinished.isNotEmpty()) Heading("Pick up unfinished work")
+        unfinished.forEach { (row,session)->
+            Action("Resume "+session.title+" · "+row.day){resumeSession(row.day,row.item)}
+        }
         if(previous!=null){
-            Heading("Pick up unfinished work")
             val question=b.get("draft",previous.day,"unresolved")
             Body(question.ifBlank { previous.body }.take(160))
             Action("Reopen journal · "+previous.day){resume(previous.day)}
@@ -188,10 +205,6 @@ private val glyphs=listOf("◉","◷","▤","✎")
         Action("← Agenda",back)
         Heading(r?.optString("title")?:reminder?.let { JSONObject(it.body).optString("title") }?:b.prefs().getJSONObject("schedule").optJSONObject(kind)?.optString("title")?:kind)
         if(reminder!=null){Body(JSONObject(reminder.body).optString("time")+" · "+d);return@Screen}
-        if(r==null && kind.startsWith("activity-")){
-            val rule=b.prefs().getJSONObject("schedule").optJSONObject(kind)
-            Body("Recurring personal activity · "+rule?.optString("time").orEmpty());return@Screen
-        }
         if(r==null)Body("No published report for this date.")
         if(d==today(b.prefs()))Action("Refresh report",refresh)
         if(r!=null){

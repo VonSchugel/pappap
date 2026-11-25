@@ -109,7 +109,18 @@ class Book(val ctx:Context){
         if(get("meta","","pending")==revision) put("meta","","pending","")
     }
     @Synchronized fun receivedPrefs(p:JSONObject){
-        if(get("meta","","pending").isEmpty() && prefs().toString()!=p.toString()){
+        if(get("meta","","pending").isNotEmpty()) return
+        val cached=prefs()
+        val rules=p.getJSONObject("schedule")
+        // Older servers return only the original four schedule fields.
+        for(id in rules.namesList()){
+            val old=cached.getJSONObject("schedule").optJSONObject(id) ?: continue
+            val incoming=rules.getJSONObject(id)
+            for(key in listOf("weekdays","prompts")){
+                if(!incoming.has(key) && old.has(key)) incoming.put(key,old.get(key))
+            }
+        }
+        if(cached.toString()!=p.toString()){
             put("meta","","prefs",p.toString()); Bells.reset(ctx)
         }
     }
@@ -121,6 +132,11 @@ class Book(val ctx:Context){
     fun markdown(d:String):String=buildString {
         appendLine("# Journal · $d"); appendLine(); appendLine(get("tags",d,"tags"))
         sections().forEach { (id,title)->appendLine("\n## $title\n"); appendLine(get("draft",d,id)) }
+        rows("session",d).map { ActivitySession.read(it.body) }.sortedBy { it.time }.forEach { session->
+            appendLine("\n## "+session.title+" · "+session.time+"\n")
+            appendLine(if(session.complete)"Completed" else "In progress")
+            session.prompts.zip(session.answers).forEach { (prompt,answer)->appendLine("\n### $prompt\n");appendLine(answer) }
+        }
         for (s in listOf("note","feedback","link","question","observation")){
             val records=rows(s,d)
             if(records.isNotEmpty()) appendLine("\n## "+s.replaceFirstChar { it.uppercase() }+"\n")

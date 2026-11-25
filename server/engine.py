@@ -69,7 +69,7 @@ class Store:
         result={}
         for k in registry:
             item=p["schedule"].get(k,{})
-            if item.get("enabled") and item["time"]<=clock:
+            if item.get("enabled") and now.isoweekday() in item.get("weekdays",range(1,8)) and item["time"]<=clock:
                 try: self.generate(day,k,p,registry=registry); result[k]="checked"
                 except Exception as exc: result[k]="retry on next tick · "+type(exc).__name__
         return result

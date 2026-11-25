@@ -1,5 +1,13 @@
 # Verification record
 
+## Reusable activities · 25 November 2026
+
+Version 0.2 passed seven Android 15 instrumentation checks and 17 backend tests. With networking disabled, the emulator created a project from the template picker, selected its repeat days, typed measurements and force-stopped the app. After restart it recovered the measurements. A dated session retained its original prompts after the activity was renamed and paused. Completing the older session removed it from unfinished work and left the other date open. Its Markdown export contained the original measurements.
+
+The backend accepted custom prompts and weekdays, rejected invalid definitions, and published according to the local weekday across a UTC date boundary. The n8n clock also published a Tech Brief without an Android client. Both APK signatures passed verification. The separate preview installed and launched alongside the standard app.
+
+[Build, device checks and downloadable APKs](https://github.com/VonSchugel/pappap/actions/runs/45680148466)
+
 ## Executed on 22 November 2026
 
 All 16 server and in-memory FastAPI tests passed. The checks cover authenticated requests, rejected invalid settings, timezone rollover, changing and pausing a schedule, concurrent and repeated generation, failure recovery, two versions of one project staying distinct, canonical-link merging, X outage, expiry and location matching of coastal evidence, closure precedence, tide timezone conversion and explicit Morocco eligibility.

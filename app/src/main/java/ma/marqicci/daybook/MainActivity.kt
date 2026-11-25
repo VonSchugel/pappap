@@ -59,8 +59,8 @@ class MainActivity:ComponentActivity(){
         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp),content=content)
     }
 }
-@Composable fun Sheet(title:String,close:()->Unit,content:@Composable ColumnScope.()->Unit){
-    AlertDialog(onDismissRequest=close,title={Heading(title)},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp),content=content)},confirmButton={Action("Done",close)})
+@Composable fun Sheet(title:String,close:()->Unit,closeLabel:String="Done",content:@Composable ColumnScope.()->Unit){
+    AlertDialog(onDismissRequest=close,title={Heading(title)},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp),content=content)},confirmButton={Action(closeLabel,close)})
 }
 @Composable fun Web(title:String,url:String){
     val c=LocalContext.current
@@ -128,7 +128,7 @@ private val glyphs=listOf("◉","◷","▤","✎")
                 if(message.isNotEmpty() || fatal.isNotEmpty())Text(fatal.ifEmpty { message },Modifier.padding(horizontal=20.dp,vertical=5.dp),fontSize=13.sp,color=clay)
                 key(tab,detail,day.toString()){
                     when {
-                        detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!){detail=null}
+                        detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!,if(tab==3)"← Journal" else "← Agenda"){detail=null}
                         detail!=null->ReportScreen(b,day,detail!!,{detail=null},{sync(detail)})
                         tab==0->Today(b,day,{k->if(k=="tech")tab=2 else if(k=="journal")tab=3 else detail=k},{dayOverride=null},
                             {old->dayOverride=old;tab=3},{old,id->dayOverride=old;detail=id})
@@ -165,7 +165,8 @@ private val glyphs=listOf("◉","◷","▤","✎")
             val r=reports[k];val rule=sc.optJSONObject(k)
             val session=sessions[k]
             if(session!=null){
-                items+=RowItem(session.time,k,session.title,if(session.complete)"Completed" else "In progress")
+                val status=if(session.complete)"Completed" else "In progress"
+                items+=RowItem(session.time,k,session.title,listOf(status,session.excerpt()).filter { it.isNotBlank() }.joinToString(" · "))
                 return@forEach
             }
             if(d>=current && rule!=null && (!rule.optBoolean("enabled") || d.dayOfWeek.value !in rule.weekdays()))return@forEach
@@ -189,6 +190,7 @@ private val glyphs=listOf("◉","◷","▤","✎")
         if(previous!=null || unfinished.isNotEmpty()) Heading("Pick up unfinished work")
         unfinished.forEach { (row,session)->
             Action("Resume "+session.title+" · "+row.day){resumeSession(row.day,row.item)}
+            session.excerpt().takeIf { it.isNotEmpty() }?.let { Caption(it) }
         }
         if(previous!=null){
             val question=b.get("draft",previous.day,"unresolved")

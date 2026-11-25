@@ -41,6 +41,9 @@ data class ActivitySession(
     val title: String, val time: String, val prompts: List<String>,
     val answers: List<String>, val complete: Boolean
 ) {
+    fun excerpt(): String = prompts.zip(answers).lastOrNull { it.second.isNotBlank() }
+        ?.let { (prompt,answer) -> prompt+" · "+answer.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(100) }.orEmpty()
+
     fun json(): String = JSONObject().put("title", title).put("time", time)
         .put("prompts", JSONArray(prompts)).put("answers", JSONArray(answers))
         .put("complete", complete).toString()
@@ -85,7 +88,7 @@ data class ActivitySession(
     val prompts = lines.lines().map { it.trim() }.filter { it.isNotEmpty() }
     val valid = title.isNotBlank() && title.trim().length <= 100 && days.isNotEmpty() &&
         prompts.size in 1..8 && prompts.all { it.length <= 100 } && prompts.distinct().size == prompts.size
-    Sheet(if (id == null) "New activity" else "Edit activity", close) {
+    Sheet(if (id == null) "New activity" else "Edit activity", close, closeLabel = "Cancel") {
         if (id == null) {
             Caption("Start from a template")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -117,7 +120,7 @@ data class ActivitySession(
     }
 }
 
-@Composable fun SessionScreen(b: Book, day: LocalDate, id: String, back: () -> Unit) {
+@Composable fun SessionScreen(b: Book, day: LocalDate, id: String, backLabel: String, back: () -> Unit) {
     LocalPages.current
     val date = day.toString()
     val stored = b.get("session", date, id)
@@ -129,7 +132,7 @@ data class ActivitySession(
     }
     fun save(value: ActivitySession) = b.put("session", date, id, value.json())
     Screen {
-        Action("← Agenda", back)
+        Action(backLabel, back)
         if (session == null) { Body("This activity is unavailable."); return@Screen }
         Caption(nice(day, "EEEE, MMMM d, yyyy") + " · " + session.time)
         Heading(session.title)

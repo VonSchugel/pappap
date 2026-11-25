@@ -97,7 +97,7 @@ import java.time.*
     if(dialog.startsWith("days/")){
         val id=dialog.substringAfter("/")
         var days by remember(id){mutableStateOf(schedule.getJSONObject(id).weekdays())}
-        Sheet("Repeat "+schedule.getJSONObject(id).getString("title"),{dialog=""}){
+        Sheet("Repeat "+schedule.getJSONObject(id).getString("title"),{dialog=""},closeLabel="Cancel"){
             WeekdaySelector(days){days=it}
             Button(enabled=days.isNotEmpty(),onClick={
                 b.settings { it.getJSONObject("schedule").getJSONObject(id).put("weekdays",JSONArray(days.sorted())) }

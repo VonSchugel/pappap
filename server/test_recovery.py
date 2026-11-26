@@ -1,12 +1,15 @@
 """Failure isolation, date boundaries and cached publication regressions."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import date, datetime, time, timedelta, timezone
+from itertools import product
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event
+from threading import Event, Lock
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from engine import Store
 from test_core import D, prefs, fixture_story
@@ -81,6 +84,51 @@ class PublicationRecovery(unittest.TestCase):
         temp=TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.store=Store(Path(temp.name)/"qa.sqlite")
+
+    def test_casablanca_full_year_and_september_offset_change(self):
+        zone=ZoneInfo("Africa/Casablanca")
+        for utc_date,local in [("2026-09-19","2026-09-20T00:30"),("2026-09-20","2026-09-20T23:30"),
+                               ("2026-11-26","2026-11-26T23:30")]:
+            instant=datetime.fromisoformat(utc_date+"T23:30:00+00:00")
+            self.assertEqual(instant.astimezone(zone).strftime("%Y-%m-%dT%H:%M"),local)
+        p=prefs()
+        p["schedule"]["tech"].update(enabled=True,time="06:00",weekdays=[1,5])
+        self.store.save(p)
+        expected=[]
+        published=[]
+        def generate(day,_):
+            published.append(day)
+            return {"summary":day}
+        for i in range(365):
+            day=date(2026,1,1)+timedelta(days=i)
+            eligible=day.isoweekday() in (1,5)
+            if eligible: expected.append(day.isoformat())
+            for clock in (time(5,59),time(6),time(6,1)):
+                utc=datetime.combine(day,clock,zone).astimezone(timezone.utc)
+                result=self.store.tick(utc,{"tech":generate})
+                self.assertEqual("tech" in result,eligible and clock>=time(6))
+        self.assertEqual(published,expected)
+        self.assertEqual(len(published),104)
+
+    def test_repeated_concurrent_generation_across_dates_and_kinds(self):
+        p=prefs()
+        kinds=["tech","weather","swim","hacks"]
+        pairs=list(product(["2026-11-24","2026-11-25","2026-11-26"],kinds))
+        calls=Counter()
+        lock=Lock()
+        def producer(kind):
+            def run(day,_):
+                with lock:
+                    calls[day,kind]+=1
+                return {"summary":kind+" "+day}
+            return run
+        registry={kind:producer(kind) for kind in kinds}
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            list(pool.map(lambda pair:self.store.generate(*pair,p,registry=registry),pairs*64))
+        self.assertEqual(calls,Counter(pairs))
+        reopened=Store(self.store.path)
+        for day in sorted({day for day,_ in pairs}):
+            self.assertCountEqual([r["summary"] for r in reopened.day(day)],[kind+" "+day for kind in kinds])
 
     def test_expired_worker_returns_committed_winner(self):
         entered=Event(); resume=Event();p=prefs()

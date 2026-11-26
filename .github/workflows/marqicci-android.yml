@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  PYTHONTZPATH: ""
 jobs:
   android:
     name: Android API ${{ matrix.api }}

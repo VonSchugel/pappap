@@ -10,7 +10,7 @@ import androidx.work.*
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.time.*
+import org.threeten.bp.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 
@@ -35,7 +35,7 @@ fun activities(b:Book):List<ActivityTime>{
         val r=JSONObject(row.body)
         try {
             ActivityTime(row.item,r.getString("title"),LocalTime.parse(r.getString("time")),LocalDate.parse(row.day),r.optBoolean("notify",true))
-        } catch(e:java.time.format.DateTimeParseException){null}
+        } catch(e:org.threeten.bp.format.DateTimeParseException){null}
     }
 }
 object Bells {

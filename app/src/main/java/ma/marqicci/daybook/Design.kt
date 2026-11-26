@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import java.time.LocalDate
+import org.threeten.bp.LocalDate
 import java.util.Locale
 
 private val dayColors=lightColorScheme(

@@ -141,6 +141,6 @@ jobs:
           if test -f Marqicci/gradlew; then cd Marqicci; fi
           python -m pip install -r server/requirements.txt
           python -m playwright install --with-deps chromium
-          python scripts/check-tide-render.py
           python scripts/check-public-sources.py
+          python scripts/check-tide-render.py
 

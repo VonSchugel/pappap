@@ -18,8 +18,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import org.json.*
-import java.time.*
-import java.time.temporal.ChronoUnit
+import org.threeten.bp.*
+import org.threeten.bp.temporal.ChronoUnit
 
 data class Selection(val section:String,val snapshot:String,val start:Int,val end:Int){
     val quote:String get()=snapshot.substring(start,end)

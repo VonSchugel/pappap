@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import org.json.*
-import java.time.*
+import org.threeten.bp.*
 
 @Composable fun Schedule(b:Book,status:(String)->Unit){
     LocalPages.current

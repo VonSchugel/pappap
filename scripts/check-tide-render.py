@@ -1,7 +1,8 @@
 """Exercise progressive station rendering without any external network requests."""
-from datetime import date
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 import sys
+from zoneinfo import ZoneInfo
 
 from playwright.sync_api import sync_playwright
 
@@ -29,8 +30,11 @@ def main():
                 setTimeout(() => { document.querySelector('.chart-label').textContent = 'Hour UTC+0'; }, 350);
                 </script>""")
             rows = read_station_table(page, requested, "Africa/Casablanca")
-            assert [(r["at"], r["type"]) for r in rows] == [
-                ("2026-11-02T07:10", "high"), ("2026-11-02T13:25", "low")]
+            local=ZoneInfo("Africa/Casablanca")
+            expected=[(datetime.combine(requested,clock,timezone.utc).astimezone(local).isoformat(timespec="minutes")[:16],kind)
+                      for clock,kind in [(time(6,10),"high"),(time(12,25),"low")]]
+            actual=[(r["at"],r["type"]) for r in rows]
+            assert actual==expected, f"Expected {expected}; parsed {actual}"
             print("Delayed station rows and UTC label verified in Chromium.")
         finally:
             browser.close()

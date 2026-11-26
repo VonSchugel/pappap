@@ -32,8 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 import org.json.*
-import java.time.*
-import java.time.format.DateTimeFormatter
+import org.threeten.bp.*
+import org.threeten.bp.format.DateTimeFormatter
 import java.util.Locale
 
 val LocalPages=compositionLocalOf<List<Page>> { emptyList() }
@@ -127,7 +127,7 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
         Scaffold(modifier=Modifier.fillMaxSize().background(paper).statusBarsPadding(),
             contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal+WindowInsetsSides.Bottom),
             containerColor=paper,snackbarHost={SnackbarHost(snacks)},bottomBar={
-            if(!typing)
+            if(!typing || (tab==1 && detail==null))
             Column(Modifier.background(paper)){
                 if(tab==0 && detail==null)Button(onClick={tab=3},modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=4.dp),shape=RoundedCornerShape(13.dp)){
                     Mark(R.drawable.ic_pencil,Modifier.size(17.dp));Spacer(Modifier.width(9.dp));Text("Continue journal")

@@ -12,9 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.format.TextStyle
+import org.threeten.bp.DayOfWeek
+import org.threeten.bp.LocalDate
+import org.threeten.bp.format.TextStyle
 import java.util.Locale
 
 val everyDay = (1..7).toSet()
@@ -90,6 +90,8 @@ data class ActivitySession(
     val valid = title.isNotBlank() && title.trim().length <= 100 && days.isNotEmpty() &&
         prompts.size in 1..8 && prompts.all { it.length <= 100 } && prompts.distinct().size == prompts.size
     Sheet(if (id == null) "New activity" else "Edit activity", close, closeLabel = "Cancel") {
+        val focus=androidx.compose.ui.platform.LocalFocusManager.current
+        val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         if (id == null) {
             Caption("Start from a template")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -116,6 +118,8 @@ data class ActivitySession(
                 schedule.put(key, rule.put("title", title.trim()).put("time", clock)
                     .put("weekdays", JSONArray(days.sorted())).put("prompts", JSONArray(prompts)))
             }
+            focus.clearFocus()
+            keyboard?.hide()
             close()
         }) { Text(if (id == null) "Create activity" else "Save changes") }
     }

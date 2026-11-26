@@ -12,10 +12,10 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.*
 import org.junit.runner.RunWith
-import java.time.*
+import org.threeten.bp.*
 import org.json.JSONObject
 import java.util.Locale
-import java.time.format.TextStyle
+import org.threeten.bp.format.TextStyle
 
 @RunWith(AndroidJUnit4::class)
 class DeviceChecks {
@@ -73,7 +73,8 @@ class DeviceChecks {
         val skipped=day.plusDays(1).dayOfWeek
         ui.onNodeWithText(skipped.getDisplayName(TextStyle.SHORT,Locale.ENGLISH)).performScrollTo().performClick()
         ui.onNodeWithText("Create activity").performScrollTo().performClick()
-        ui.onNodeWithText("Today").performClick()
+        ui.waitUntil(5000){ui.onAllNodesWithTag("nav-0").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("nav-0").performClick()
         ui.onNodeWithText("Bench experiment").performScrollTo().performClick()
         ui.onNodeWithText("What I tried").performScrollTo().performTextReplacement("Measured five step responses.")
         val id=activities(b).single{it.title=="Bench experiment"}.id
@@ -353,6 +354,8 @@ class DeviceChecks {
         val deadline=requireNotNull(eventDeadline(event,zone))
         Assert.assertEquals(LocalDate.of(2026,11,27),deadline.day)
         Assert.assertEquals(LocalTime.of(0,30),deadline.time)
+        val winter=eventDeadline(JSONObject().put("deadlineAt","2026-02-26T23:30:00Z"),zone)
+        Assert.assertEquals(EventDeadline(LocalDate.of(2026,2,26),LocalTime.of(23,30)),winter)
         Assert.assertNull(eventDeadline(event.put("deadlineAt","unconfirmed"),zone))
         event.remove("deadlineAt")
         event.put("deadline","2026-11-27")

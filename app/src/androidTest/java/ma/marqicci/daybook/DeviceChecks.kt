@@ -171,27 +171,41 @@ class DeviceChecks {
         ui.onNodeWithText("00:00",substring=true).assertExists()
     }
 
+    private fun assertReadingPosition(key:String, expected:Int){
+        val action=ui.onNodeWithText("Save to journal")
+        ui.waitForIdle()
+        try {
+            ui.waitUntil(8000){runCatching { action.assertIsDisplayed() }.isSuccess}
+        } catch(failure:AssertionError){
+            throw AssertionError("Saved offset "+ctx.book.connection.getInt(key,0)+", expected "+expected+
+                ". Reader bounds "+action.getUnclippedBoundsInRoot()+". "+ui.onRoot().printToString(),failure)
+        }
+        Assert.assertEquals(expected.toDouble(),ctx.book.connection.getInt(key,0).toDouble(),8.0)
+    }
+
     @Test fun resumeEditionAfterRestart(){
         val d=today(ctx.book.prefs()).toString()
         ui.waitUntil(10000){ctx.book.ready.value}
         ui.onNodeWithTag("nav-2").performClick()
         ui.onNodeWithText("Robotics").performScrollTo().performClick()
-        ui.onNodeWithText("Save to journal").performScrollTo()
+        ui.onNodeWithText("Save to journal").performScrollTo().assertIsDisplayed()
         val key="brief.position."+d+".Robotics"
         ui.waitUntil(10000){ctx.book.connection.getInt(key,0)>0}
         val position=ctx.book.connection.getInt(key,0)
         ui.activityRule.scenario.recreate()
-        ui.onNodeWithText("Save to journal").assertIsDisplayed()
-        Assert.assertTrue(ctx.book.connection.getInt(key,0)>=position-8)
+        assertReadingPosition(key,position)
         ui.onNodeWithTag("nav-0").performClick()
         ui.onNodeWithTag("nav-2").performClick()
-        ui.onNodeWithText("Save to journal").assertIsDisplayed()
+        assertReadingPosition(key,position)
     }
 
     @Test fun reopenBriefAfterProcessStop(){
         ui.waitUntil(10000){ctx.book.ready.value}
+        val key="brief.position."+today(ctx.book.prefs())+".Robotics"
+        val position=ctx.book.connection.getInt(key,0)
+        Assert.assertTrue(position>0)
         ui.onNodeWithTag("nav-2").performClick()
-        ui.onNodeWithText("Save to journal").assertIsDisplayed()
+        assertReadingPosition(key,position)
         if(ui.onAllNodesWithText("Edition start").fetchSemanticsNodes().isNotEmpty()){
             ui.onNodeWithText("Edition start").performClick()
         }

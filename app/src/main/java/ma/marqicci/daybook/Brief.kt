@@ -37,21 +37,49 @@ import java.time.LocalDate
     val visible=stories.filter { filter in listOf("All","Saved") || it.optString("topic")==filter }
     key(d,filter){
         val positionKey="brief.position."+d+"."+filter
-        val scroll=rememberScrollState(initial=b.connection.getInt(positionKey,0))
+        val scroll=remember(positionKey){ScrollState(b.connection.getInt(positionKey,0))}
         if(visible.isNotEmpty()){
             LaunchedEffect(scroll,positionKey){
-                snapshotFlow { if(!scroll.isScrollInProgress && scroll.maxValue!=Int.MAX_VALUE) scroll.value else null }
+                snapshotFlow { if(!scroll.isScrollInProgress && scroll.maxValue in 1 until Int.MAX_VALUE) scroll.value else null }
                     .filterNotNull().distinctUntilChanged().collect { pos->b.connection.edit().putInt(positionKey,pos).apply() }
             }
             DisposableEffect(scroll,positionKey){
-                onDispose { if(scroll.maxValue!=Int.MAX_VALUE)b.connection.edit().putInt(positionKey,scroll.value).apply() }
+                onDispose { if(scroll.maxValue in 1 until Int.MAX_VALUE)b.connection.edit().putInt(positionKey,scroll.value).apply() }
             }
         }
         val threshold=with(LocalDensity.current){200.dp.roundToPx()}
         val reading by remember(scroll,threshold){derivedStateOf { scroll.value>threshold }}
         var choosingTopic by remember {mutableStateOf(false)}
-        Column(Modifier.fillMaxSize()){
-            if(reading){
+        Box(Modifier.fillMaxSize()){
+            Screen(scroll=scroll){
+                Column {
+                    Eyebrow(nice(d,"EEEE · MMMM d"))
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                        Box(Modifier.weight(1f)){PageTitle("Tech Brief")}
+                        IconAction(R.drawable.ic_sliders,"Edition preferences"){prefs=true}
+                        if(d==today(b.prefs()))IconAction(R.drawable.ic_refresh,"Refresh edition",refresh)
+                    }
+                    if(edition!=null){
+                        val count=edition.arr("stories").length()
+                        Caption((if(edition.optBoolean("demo"))"Demo edition · " else "")+count+(if(count==1)" story" else " stories"))
+                    }
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    options.forEach { t->FilterChip(selected=filter==t,onClick={selectTopic(t)},label={Text(t)}) }
+                }
+                if(filter!="Saved") edition?.arr("gaps")?.texts()?.takeIf { it.isNotEmpty() }?.let { Caption(it.joinToString("\n")) }
+                if(visible.isEmpty())Body(if(filter=="Saved")"Bookmarked stories appear here." else "No stories available for this selection.")
+                visible.forEachIndexed { i,s->
+                    val topic=s.optString("topic")
+                    if(filter=="All"){
+                        if(i==0)Eyebrow("Lead story · "+topic,leaf)
+                        else if(i==1 || visible[i-1].optString("topic")!=topic)Eyebrow(topic,leaf)
+                    }
+                    key(s.getString("url")){ Story(b,d,s,lead=i==0 && filter=="All") }
+                    Rule()
+                }
+            }
+            if(reading)Surface(modifier=Modifier.align(Alignment.TopCenter),color=paper,shadowElevation=2.dp){
                 Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween,
                     verticalAlignment=Alignment.CenterVertically){
                     TextButton(onClick={scope.launch{scroll.animateScrollTo(0)}}){Text("Edition start")}
@@ -63,37 +91,6 @@ import java.time.LocalDate
                         DropdownMenu(expanded=choosingTopic,onDismissRequest={choosingTopic=false}){
                             options.forEach { topic->DropdownMenuItem(text={Text(topic)},onClick={choosingTopic=false;selectTopic(topic)}) }
                         }
-                    }
-                }
-                Rule()
-            }
-            Box(Modifier.weight(1f)){
-                Screen(scroll=scroll){
-                    Column {
-                        Eyebrow(nice(d,"EEEE · MMMM d"))
-                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                            Box(Modifier.weight(1f)){PageTitle("Tech Brief")}
-                            IconAction(R.drawable.ic_sliders,"Edition preferences"){prefs=true}
-                            if(d==today(b.prefs()))IconAction(R.drawable.ic_refresh,"Refresh edition",refresh)
-                        }
-                        if(edition!=null){
-                            val count=edition.arr("stories").length()
-                            Caption((if(edition.optBoolean("demo"))"Demo edition · " else "")+count+(if(count==1)" story" else " stories"))
-                        }
-                    }
-                    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                        options.forEach { t->FilterChip(selected=filter==t,onClick={selectTopic(t)},label={Text(t)}) }
-                    }
-                    if(filter!="Saved") edition?.arr("gaps")?.texts()?.takeIf { it.isNotEmpty() }?.let { Caption(it.joinToString("\n")) }
-                    if(visible.isEmpty())Body(if(filter=="Saved")"Bookmarked stories appear here." else "No stories available for this selection.")
-                    visible.forEachIndexed { i,s->
-                        val topic=s.optString("topic")
-                        if(filter=="All"){
-                            if(i==0)Eyebrow("Lead story · "+topic,leaf)
-                            else if(i==1 || visible[i-1].optString("topic")!=topic)Eyebrow(topic,leaf)
-                        }
-                        key(s.getString("url")){ Story(b,d,s,lead=i==0 && filter=="All") }
-                        Rule()
                     }
                 }
             }

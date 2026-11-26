@@ -3,7 +3,8 @@ set -euo pipefail
 package=ma.marqicci.daybook
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 33 ]; then
+api_level=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
+if [ "$api_level" -ge 33 ]; then
   adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS
 fi
 failed=0
@@ -16,7 +17,21 @@ run_case() {
     failed=1
   fi
 }
-trap 'adb shell svc wifi enable; adb shell svc data enable; adb shell cmd uimode night no; adb shell settings put system font_scale 1.0' EXIT
+# Use the system airplane-mode broadcast on the isolated Oreo emulator. Its
+# legacy svc wifi process can exit before notifying ConnectivityService.
+if [ "$api_level" -eq 26 ]; then
+  adb root
+  adb wait-for-device
+  adb shell settings put global airplane_mode_radios cell,bluetooth,wifi,nfc,wimax
+  adb shell settings put global airplane_mode_on 1
+  adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
+  adb emu gsm data unregistered
+  for interface in wlan0 eth0 rmnet0; do
+    if adb shell ip link show "$interface" >/dev/null 2>&1; then
+      adb shell ip link set "$interface" down
+    fi
+  done
+fi
 for radio in wifi data; do
   echo "Disabling $radio on the test emulator"
   for attempt in 1 2 3; do
@@ -25,7 +40,10 @@ for radio in wifi data; do
   done
 done
 run_case verifyOfflineTransports
-if ((failed)); then exit 1; fi
+if ((failed)); then
+  adb shell dumpsys connectivity | head -100 || true
+  adb shell ip link show || true
+fi
 mkdir -p build/ui-review
 run_case captureScreens
 for screen in today schedule brief journal focus; do
@@ -71,7 +89,7 @@ APP_TOKEN=$(python -c 'import secrets; print(secrets.token_hex(18))')
 export DB_PATH="$PWD/build/ui-review/connected-test.sqlite"
 PYTHONPATH=server python -m uvicorn main:app --host 127.0.0.1 --port 18731 >build/connected-api.log 2>&1 &
 api_pid=$!
-trap 'kill "$api_pid" 2>/dev/null || true; adb reverse --remove tcp:18731 || true; adb shell svc wifi enable; adb shell svc data enable; adb shell cmd uimode night no; adb shell settings put system font_scale 1.0' EXIT
+trap 'kill "$api_pid" 2>/dev/null || true; adb reverse --remove tcp:18731 || true' EXIT
 curl --retry 20 --retry-delay 1 --retry-connrefused --fail --silent -H "Authorization: Bearer $APP_TOKEN" http://127.0.0.1:18731/v1/preferences >/dev/null
 adb reverse tcp:18731 tcp:18731
 run_case realServerRecoversPendingChanges -e apiToken "$APP_TOKEN"

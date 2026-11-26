@@ -24,6 +24,11 @@ class DeviceChecks {
     val sample="An offline premise survives an Android process restart."
     fun openJournal(){ui.waitUntil(10000){ctx.book.ready.value};ui.onNodeWithText("Continue journal",substring=true).performClick()}
 
+    @Test fun verifyOfflineTransports(){
+        val network=ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        ui.waitUntil(15000){network.activeNetwork==null}
+    }
+
     @Test fun writeOffline(){
         openJournal()
         ui.onNodeWithText("What I studied").performScrollTo().performTextReplacement(sample)
@@ -74,6 +79,8 @@ class DeviceChecks {
         val id=activities(b).single{it.title=="Bench experiment"}.id
         Assert.assertFalse(skipped.value in activities(b).single{it.id==id}.weekdays)
         ui.waitUntil(10000){b.get("session",day.toString(),id).contains("five step responses") && b.saved.value>=b.queued}
+        val persisted=b.db.pages().all().single { it.shelf=="session" && it.day==day.toString() && it.item==id }
+        Assert.assertTrue(ActivitySession.read(persisted.body).answers.contains("Measured five step responses."))
     }
 
     @Test fun resumeAndCompleteAfterRestart(){
@@ -83,7 +90,7 @@ class DeviceChecks {
         val id=activities(b).single{it.title=="Bench experiment"}.id
         val prior=day.minusDays(1).toString()
         val snapshot=b.get("session",day.toString(),id)
-        Assert.assertTrue(snapshot.contains("five step responses"))
+        Assert.assertTrue("Missing saved measurements for "+day+"; sessions="+b.rows("session").map { it.day to ActivitySession.read(it.body).answers },snapshot.contains("five step responses"))
         b.put("session",prior,id,snapshot)
         b.settings { it.getJSONObject("schedule").getJSONObject(id)
             .put("title","New experiment").put("prompts",org.json.JSONArray(listOf("New question"))).put("enabled",false) }
@@ -367,6 +374,23 @@ class DeviceChecks {
             Assert.assertTrue(valid.item in ids)
             Assert.assertFalse(old.item in ids)
         } finally {b.edit(removals=listOf(old,valid));b.flush()}
+    }
+
+    @Test fun pausingFromScheduleUpdatesToday(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val original=b.prefs().getJSONObject("schedule").getJSONObject("swim").getBoolean("enabled")
+        try {
+            ui.onNodeWithTag("nav-1").performClick()
+            ui.onNodeWithText("Mannesmann swim check").performScrollTo().performClick()
+            ui.onNodeWithText("Enabled").performScrollTo().performClick()
+            ui.waitUntil(5000){b.prefs().getJSONObject("schedule").getJSONObject("swim").getBoolean("enabled")!=original}
+            ui.onNodeWithTag("nav-0").performClick()
+            if(original)ui.onNodeWithText("Mannesmann swim check").assertDoesNotExist()
+            else ui.onNodeWithText("Mannesmann swim check").assertExists()
+        } finally {
+            b.settings { it.getJSONObject("schedule").getJSONObject("swim").put("enabled",original) };b.flush()
+        }
     }
 }
 

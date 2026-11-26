@@ -14,9 +14,11 @@ jobs:
       matrix:
         include:
           - api: 26
-            arch: x86
+            target: google_apis
+            profile: pixel_2
           - api: 35
-            arch: x86_64
+            target: default
+            profile: pixel_6
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -62,8 +64,10 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
-          arch: ${{ matrix.arch }}
-          profile: pixel_6
+          arch: x86_64
+          target: ${{ matrix.target }}
+          profile: ${{ matrix.profile }}
+          ram-size: 2048M
           script: cd "$BOOK_DIR" && bash scripts/device-checks.sh
       - name: Save emulator screenshots
         if: ${{ !cancelled() }}
@@ -123,7 +127,7 @@ jobs:
 
   live-sources:
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[live sources]') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

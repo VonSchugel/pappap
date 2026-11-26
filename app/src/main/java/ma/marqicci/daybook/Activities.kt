@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
@@ -149,13 +151,17 @@ data class ActivitySession(
                 if (session.complete) {
                     Caption(prompt); Body(session.answers[i].ifBlank { "—" })
                 } else {
-                    Field(prompt, session.answers[i], { text ->
-                        // Read the newest draft even when multiple input events precede recomposition.
-                        val latest = b.get("session", date, id).takeIf { it.isNotEmpty() }?.let { ActivitySession.read(it) } ?: session
-                        val answers = latest.answers.toMutableList()
-                        answers[i] = text
-                        save(latest.copy(answers = answers))
-                    }, false)
+                    var field by remember(date,id,i){mutableStateOf(TextFieldValue(session.answers[i]))}
+                    OutlinedTextField(value=field,onValueChange={next->
+                        val changed=next.text!=field.text
+                        field=next
+                        if(changed){
+                            val latest=b.get("session",date,id).takeIf { it.isNotEmpty() }?.let { ActivitySession.read(it) } ?: session
+                            val answers=latest.answers.toMutableList()
+                            answers[i]=next.text
+                            save(latest.copy(answers=answers))
+                        }
+                    },label={Text(prompt)},modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(10.dp))
                 }
             }
         }

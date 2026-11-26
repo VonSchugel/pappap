@@ -84,7 +84,7 @@ class Book(val ctx:Context){
     }
     @Synchronized fun edit(puts:List<Page> = emptyList(), removals:List<Page> = emptyList()){
         val touched=(puts+removals).map { Triple(it.shelf,it.day,it.item) }.toSet()
-        state.value=state.value.filterNot { Triple(it.shelf,it.day,it.item) in touched }+puts
+        val next=state.value.filterNot { Triple(it.shelf,it.day,it.item) in touched }+puts
         val seq=++queued
         writer.execute {
             try {
@@ -95,6 +95,7 @@ class Book(val ctx:Context){
                 saved.value=seq
             } catch(e:Exception){ error.value="Device save failed: "+e.javaClass.simpleName }
         }
+        state.value=next
     }
     fun put(s:String,d:String,i:String,v:String) = edit(listOf(Page(s,d,i,v)))
     fun remove(p:Page)=edit(removals=listOf(p))

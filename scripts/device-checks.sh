@@ -16,9 +16,16 @@ run_case() {
     failed=1
   fi
 }
-adb shell svc wifi disable
-adb shell svc data disable
 trap 'adb shell svc wifi enable; adb shell svc data enable; adb shell cmd uimode night no; adb shell settings put system font_scale 1.0' EXIT
+for radio in wifi data; do
+  echo "Disabling $radio on the test emulator"
+  for attempt in 1 2 3; do
+    if adb shell svc "$radio" disable; then break; fi
+    sleep 2
+  done
+done
+run_case verifyOfflineTransports
+if ((failed)); then exit 1; fi
 mkdir -p build/ui-review
 run_case captureScreens
 for screen in today schedule brief journal focus; do
@@ -53,6 +60,7 @@ run_case malformedEventDeadlineCannotCreateAnAlarm
 run_case rapidOfflineEditsStayOnTheirDate
 run_case deadlineConversionHandlesMidnightAndPartialDates
 run_case badLegacyReminderLeavesAgendaAndOtherAlarmsAvailable
+run_case pausingFromScheduleUpdatesToday
 adb install -r app/build/outputs/apk/preview/app-preview.apk
 adb shell pm path "$package.preview"
 adb shell pm path "$package"

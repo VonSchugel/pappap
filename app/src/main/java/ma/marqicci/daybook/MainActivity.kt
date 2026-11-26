@@ -93,7 +93,8 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     var tab by rememberSaveable { mutableIntStateOf(if(open=="journal")3 else if(open=="tech")2 else 0) }
     var detail by rememberSaveable { mutableStateOf(open?.takeUnless { it == "journal" || it == "tech" }) }
     val day=dayOverride?.let(LocalDate::parse)?:current
-    val screenState=key(day){rememberSaveableStateHolder()}
+    val screenState=rememberSaveableStateHolder()
+    val screenKey="$day/$tab/${detail.orEmpty()}"
     val snacks=remember { SnackbarHostState() }
     var message by remember { mutableStateOf("") }
     val connected=!b.connection.getString("url","").isNullOrBlank()
@@ -154,7 +155,7 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
                 Rule()
                 if(busy) LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
                 if(fatal.isNotEmpty())Text(fatal,Modifier.padding(12.dp),color=MaterialTheme.colorScheme.error)
-                screenState.SaveableStateProvider("$tab/${detail.orEmpty()}"){
+                key(screenKey){screenState.SaveableStateProvider(screenKey){
                     when {
                         detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!,if(tab==3)"← Journal" else "← Agenda"){detail=null}
                         detail!=null->ReportScreen(b,day,detail!!,{detail=null},{sync(detail)})
@@ -164,7 +165,7 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
                         tab==2->Brief(b,day){sync("tech")}
                         else->Journal(b,day,{dayOverride=it.toString()},{detail=it}){message=it}
                     }
-                }
+                }}
             }
         }
     }

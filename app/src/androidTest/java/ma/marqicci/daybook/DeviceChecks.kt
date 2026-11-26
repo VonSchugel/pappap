@@ -87,7 +87,8 @@ class DeviceChecks {
             .put("title","New experiment").put("prompts",org.json.JSONArray(listOf("New question"))).put("enabled",false) }
         ui.onNodeWithText("Resume Bench experiment · "+prior).performScrollTo().performClick()
         ui.onNodeWithText("Measured five step responses.").assertExists()
-        ui.onNodeWithText(nice(LocalDate.parse(prior),"EEEE, MMMM d, yyyy")+" · "+ActivitySession.read(snapshot).time).assertExists()
+        ui.onNodeWithText(nice(LocalDate.parse(prior),"EEEE, MMMM d, yyyy")+" · "+ActivitySession.read(snapshot).time)
+            .assertExists("Expected session for "+prior+". Screen after opening: "+ui.onRoot().printToString())
         ui.onNodeWithText("Mark complete").performScrollTo().assertIsDisplayed().performClick()
         ui.waitForIdle()
         Assert.assertTrue("Expected completed session on "+prior+"; records="+b.rows("session").map { it.day to ActivitySession.read(it.body).complete },

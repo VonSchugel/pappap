@@ -6,11 +6,15 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 33 ]; then
   adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS
 fi
+failed=0
 run_case() {
   local output
+  echo "Running $1"
   output=$(adb shell am instrument -w -e class "$package.DeviceChecks#$1" "$package.test/androidx.test.runner.AndroidJUnitRunner")
   echo "$output"
-  grep -Fq 'OK (1 test)' <<< "$output"
+  if ! grep -Fq 'OK (1 test)' <<< "$output"; then
+    failed=1
+  fi
 }
 adb shell svc wifi disable
 adb shell svc data disable
@@ -46,4 +50,5 @@ adb install -r app/build/outputs/apk/preview/app-preview.apk
 adb shell pm path "$package.preview"
 adb shell pm path "$package"
 adb shell am start -W -n "$package.preview/$package.MainActivity"
+exit "$failed"
 

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -16,6 +15,7 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import java.time.LocalDate
 
@@ -24,7 +24,7 @@ import java.time.LocalDate
     val edition=b.reports(d.toString()).firstOrNull { it.optString("kind")=="tech" }
     val options=listOf("All","AI models","Developer tools","Robotics","Saved")
     val filterKey="brief.filter."+d
-    var filter by rememberSaveable(d.toString()){
+    var filter by remember(d){
         mutableStateOf(b.connection.getString(filterKey,"All")?.takeIf { it in options } ?: "All")
     }
     fun selectTopic(topic:String){
@@ -37,14 +37,31 @@ import java.time.LocalDate
     val visible=stories.filter { filter in listOf("All","Saved") || it.optString("topic")==filter }
     key(d,filter){
         val positionKey="brief.position."+d+"."+filter
-        val scroll=remember(positionKey){ScrollState(b.connection.getInt(positionKey,0))}
+        val initialOffset=remember(positionKey){b.connection.getInt(positionKey,0)}
+        val initialRange=remember(positionKey){b.connection.getInt(positionKey+".range",0)}
+        val scroll=remember(positionKey){ScrollState(initialOffset)}
+        var restored by remember(positionKey){mutableStateOf(false)}
+        fun savePosition(){
+            if(restored && scroll.maxValue in 1 until Int.MAX_VALUE){
+                b.connection.edit().putInt(positionKey,scroll.value).putInt(positionKey+".range",scroll.maxValue).apply()
+            }
+        }
         if(visible.isNotEmpty()){
             LaunchedEffect(scroll,positionKey){
-                snapshotFlow { if(!scroll.isScrollInProgress && scroll.maxValue in 1 until Int.MAX_VALUE) scroll.value else null }
-                    .filterNotNull().distinctUntilChanged().collect { pos->b.connection.edit().putInt(positionKey,pos).apply() }
+                if(initialOffset>0){
+                    snapshotFlow { scroll.maxValue }.first { it<Int.MAX_VALUE }
+                    // Insets and text measurement settle after the first restored layout.
+                    repeat(3){withFrameNanos { }}
+                    val target=if(initialRange>0) Math.round(scroll.maxValue * (initialOffset.toDouble()/initialRange)).toInt()
+                        else initialOffset
+                    scroll.scrollTo(target.coerceIn(0,scroll.maxValue))
+                }
+                restored=true
+                snapshotFlow { if(!scroll.isScrollInProgress) scroll.value to scroll.maxValue else null }
+                    .filterNotNull().distinctUntilChanged().collect { savePosition() }
             }
             DisposableEffect(scroll,positionKey){
-                onDispose { if(scroll.maxValue in 1 until Int.MAX_VALUE)b.connection.edit().putInt(positionKey,scroll.value).apply() }
+                onDispose { savePosition() }
             }
         }
         val threshold=with(LocalDensity.current){200.dp.roundToPx()}

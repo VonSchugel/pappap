@@ -8,6 +8,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.*
 import org.junit.runner.RunWith
 import java.time.*
@@ -148,7 +150,7 @@ class DeviceChecks {
         ui.onNodeWithText("Next").performClick()
         ui.onNodeWithText("How I studied it").performScrollTo().performTextReplacement("Compared two arguments.")
         ui.waitUntil(10000){ctx.book.get("draft",today(ctx.book.prefs()).toString(),"method")=="Compared two arguments."}
-        ui.onNodeWithText("Previous").performScrollTo().performClick()
+        ui.onNodeWithText("Previous").assertIsDisplayed().performClick()
         ui.onNodeWithText(sample).assertExists()
         ui.onNodeWithText("All sections").performScrollTo().performClick()
         ui.onNodeWithText("Compared two arguments.").assertExists()
@@ -171,16 +173,25 @@ class DeviceChecks {
         ui.onNodeWithText("00:00",substring=true).assertExists()
     }
 
-    private fun assertReadingPosition(key:String, expected:Int){
+    private fun reader()=ui.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+
+    private fun assertReadingPosition(key:String, expected:Double){
         val action=ui.onNodeWithText("Save to journal")
         ui.waitForIdle()
         try {
-            ui.waitUntil(8000){runCatching { action.assertIsDisplayed() }.isSuccess}
-        } catch(failure:AssertionError){
-            throw AssertionError("Saved offset "+ctx.book.connection.getInt(key,0)+", expected "+expected+
-                ". Reader bounds "+action.getUnclippedBoundsInRoot()+". "+ui.onRoot().printToString(),failure)
+            ui.waitUntil(8000){
+                runCatching {
+                    val axis=reader().fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+                    action.assertIsDisplayed()
+                    kotlin.math.abs(axis.value()/axis.maxValue()-expected)<0.025
+                }.getOrDefault(false)
+            }
+        } catch(failure:Throwable){
+            val axis=runCatching {reader().fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]}.getOrNull()
+            throw AssertionError("Saved offset="+ctx.book.connection.getInt(key,0)+" saved range="+ctx.book.connection.getInt(key+".range",0)+
+                " expected fraction="+expected+" actual offset="+axis?.value?.invoke()+" actual range="+axis?.maxValue?.invoke()+
+                ". "+ui.onRoot().printToString(),failure)
         }
-        Assert.assertEquals(expected.toDouble(),ctx.book.connection.getInt(key,0).toDouble(),8.0)
     }
 
     @Test fun resumeEditionAfterRestart(){
@@ -188,10 +199,12 @@ class DeviceChecks {
         ui.waitUntil(10000){ctx.book.ready.value}
         ui.onNodeWithTag("nav-2").performClick()
         ui.onNodeWithText("Robotics").performScrollTo().performClick()
-        ui.onNodeWithText("Save to journal").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("Save to journal").performScrollTo()
+        reader().performSemanticsAction(SemanticsActions.ScrollBy){it(0f,10000f)}
+        ui.onNodeWithText("Save to journal").assertIsDisplayed()
         val key="brief.position."+d+".Robotics"
-        ui.waitUntil(10000){ctx.book.connection.getInt(key,0)>0}
-        val position=ctx.book.connection.getInt(key,0)
+        ui.waitUntil(10000){ctx.book.connection.getInt(key,0)>0 && ctx.book.connection.getInt(key,0)==ctx.book.connection.getInt(key+".range",-1)}
+        val position=1.0
         ui.activityRule.scenario.recreate()
         assertReadingPosition(key,position)
         ui.onNodeWithTag("nav-0").performClick()
@@ -202,8 +215,8 @@ class DeviceChecks {
     @Test fun reopenBriefAfterProcessStop(){
         ui.waitUntil(10000){ctx.book.ready.value}
         val key="brief.position."+today(ctx.book.prefs())+".Robotics"
-        val position=ctx.book.connection.getInt(key,0)
-        Assert.assertTrue(position>0)
+        val position=ctx.book.connection.getInt(key,0).toDouble()/ctx.book.connection.getInt(key+".range",1)
+        Assert.assertEquals(1.0,position,0.025)
         ui.onNodeWithTag("nav-2").performClick()
         assertReadingPosition(key,position)
         if(ui.onAllNodesWithText("Edition start").fetchSemanticsNodes().isNotEmpty()){

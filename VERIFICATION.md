@@ -1,5 +1,31 @@
 # Verification record
 
+## Version 0.3.1 · 26 November 2026
+
+All 23 Android instrumentation checks passed on each of two emulators, Android 8 (API 26) and Android 15 (API 35). All 29 server tests passed. Both APK signatures verified, and the preview launched alongside the standard app. The n8n clock published a Tech Brief with the Android client closed. [Final build and artifacts](https://github.com/VonSchugel/pappap/actions/runs/45808976958) · [Initial run with failing regressions](https://github.com/VonSchugel/pappap/actions/runs/45745673175)
+
+| Area | What the tests exercised |
+| --- | --- |
+| Journal and unfinished work | With both network transports off, reopen a draft after a force-stop, switch between focused and full-entry editing, and resume a previous date’s session. Rapid edits across two dates stayed with their entries. An essay-only date appeared in archive search. Markdown retained a multiline passage and its follow-up reading link. |
+| Agenda and notifications | Pause a recurrence in Schedule and see the change in Today. Repeated delivery produced one notification record. Deadlines with a known time use the configured zone. An incomplete deadline cannot schedule an alarm. A malformed reminder from an earlier version leaves the other alarms and agenda usable. |
+| Reading and sync | Reopen a filtered edition at its previous reading position after a process restart. Recover from a rejected server token without losing a pending settings change or cached edition. Coverage of one release merged with its Hacker News discussion, distinct versions stayed separate, and publishing continued when X was unavailable. |
+| Publication under load | Sixteen workers made 768 generation attempts for 12 date/report pairs. Each pair ran once and all 12 results survived a database reopen. A slow worker whose lease expired returned the winning publication. Across 1,095 scheduler ticks in 2026, a Monday/Friday schedule published exactly 104 editions. |
+
+The Android and server deadline checks agree on both sides of Morocco’s September clock change. A previous test incorrectly expected 23:30 UTC on November 26 to fall on November 27 in Casablanca. The corrected expectation is November 26 at 23:30. [IANA time-zone rules for Africa](https://data.iana.org/time-zones/tzdb/africa)
+
+### Live integration results for November 26
+
+| Source | Observed result |
+| --- | --- |
+| Open-Meteo Weather and Marine | 24 hourly temperature readings and 24 offshore swell-height readings for the requested date. |
+| SHOM | Four dated high or low tide predictions at the Mohammedia harbor station. A separate Chromium fixture verified that independently delayed rows and UTC labels are read before parsing. These are harbor predictions, and exposure inside the rocks remains unverified. |
+| GitHub and Hacker News | Four GitHub project or release records and 20 Hacker News discoveries with discussion links. |
+| Devpost | Nine discovery listings before Morocco eligibility checks. |
+| DGM weather and marine notices | Both bulletins responded. Neither listed Mohammedia. Local warning coverage remained unknown. |
+| X and beach-specific evidence | Live X access was unconfigured. The outage path was exercised with other sources active. No current Mannesmann water-quality sample or beach-specific closure status was verified. |
+
+[Android 8 log](https://github.com/VonSchugel/pappap/actions/runs/45808976958/job/139871532108) · [Android 15 log](https://github.com/VonSchugel/pappap/actions/runs/45808976958/job/139871531670) · [Server and n8n log](https://github.com/VonSchugel/pappap/actions/runs/45808976958/job/139871532000) · [Live source log](https://github.com/VonSchugel/pappap/actions/runs/45808976958/job/139871531881)
+
 ## Version 0.3 · 26 November 2026
 
 The signed debug and side-by-side preview APKs installed on an Android 15 emulator. All 13 Android checks and 17 server tests passed. The n8n clock published one Tech Brief while no Android client was running.

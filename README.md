@@ -2,7 +2,7 @@
 
 Marqicci is a single-user native Android daybook for Mohammedia. Today, Schedule, Tech Brief and Journal share a local calendar date. The first launch creates one labeled example day. Select **Continue journal**, type a paragraph, and wait for **Saved on this device**. Use the date button to reopen an earlier page. Journal drafts, observations, bookmarks, passages and essays live in Room on the phone.
 
-## Reading and writing in version 0.3
+## Reading and writing in version 0.3.1
 
 Today shows the next scheduled item in local time and offers unfinished work above the agenda. Tap an agenda row for the full report. On the weather page, expand **Hourly forecast** for the detailed readings. In Schedule, tap a recurring item to change it or check its next run.
 
@@ -32,7 +32,7 @@ Use an always-on host with Docker and Docker Compose. If the host sleeps, the ne
 5. For a USB-connected phone, run `adb reverse tcp:8000 tcp:8000`. In **Schedule → Server connection**, enter `http://127.0.0.1:8000` and the token. For a standard Android emulator use `http://10.0.2.2:8000`. For untethered access expose the API behind an HTTPS reverse proxy and enter its HTTPS URL. The n8n editor can stay private.
 6. Open a report and tap **Refresh report** to generate it immediately. Tech Brief has **Refresh edition**. The next scheduled tick publishes due items regardless of whether the phone is running. WorkManager downloads reports when Android permits background work. The app also syncs on opening a day.
 
-The default timezone is `Africa/Casablanca`. Weather and swimming publish at 06:00, Tech Brief at 07:30, and hackathons at 09:00. The optional 19:00 journal reminder starts paused. Reports start with notifications off. **Schedule** exposes publication time, pause, local notifications and next run separately. Android may defer notifications during Doze. Device-local notifications announce scheduled activities. They do not certify successful server publication. A disabled background process after Android's explicit **Force stop** resumes after the app is opened.
+The default timezone is `Africa/Casablanca`. The app bundles IANA clock rules so an older phone can schedule with the same local dates as the server. Rebuild the server and update the app when the rules change. Weather and swimming publish at 06:00, Tech Brief at 07:30, and hackathons at 09:00. The optional 19:00 journal reminder starts paused. Reports start with notifications off. **Schedule** exposes publication time, pause, local notifications and next run separately. Android may defer notifications during Doze. Device-local notifications announce scheduled activities. They do not certify successful server publication. A disabled background process after Android's explicit **Force stop** resumes after the app is opened.
 
 One phone owns the preferences in this single-user deployment. Offline edits are applied to the device immediately and queued for the next successful server sync. The journal is available from midnight and never requires the server. Use the same app token for n8n and the phone. Rotate it in both places if changed on the host.
 
@@ -70,12 +70,12 @@ Devpost supplies discovery. Local listings are filtered for Moroccan locations. 
 
 ```bash
 python -m pip install -r server/requirements.txt httpx
-python -m unittest discover -s server -p 'test_*.py' -v
-bash gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+PYTHONTZPATH="" python -m unittest discover -s server -p 'test_*.py' -v
+bash gradlew :app:assembleDebug :app:assemblePreview :app:assembleDebugAndroidTest
 bash scripts/device-checks.sh
 ```
 
-Use a dedicated emulator for the device checks. The script installs both APKs, temporarily disables emulator Wi-Fi and data, writes a draft using Compose, force-stops the app and reads the draft in a new process. It also checks schedule edits, repeated notification deliveries and a 28-day import. See **VERIFICATION.md** for checks actually run.
+Run the device checks on a fresh disposable emulator. Use a Google APIs image that allows `adb root` for Android 8 (API 26). The script installs the standard app, its test APK and the side-by-side preview. It changes radio and display settings, verifies the device is offline, reopens a journal draft after a force-stop, and connects to a local FastAPI server over ADB for the sync recovery test. The Python dependencies in `server/requirements.txt` must be installed on the test host. [Full test results and live source checks](VERIFICATION.md)
 
 The backend registers newsletter sources in `NEWS` and report producers in `REPORTS` in `server/sources.py`. Each report has a kind, title, date, summary, blocks and links. Add its default schedule entry in `app/src/main/assets/defaults.json`. Today renders that shared shape. Source failures are isolated. SQLite uses a unique day/kind and an expiring generation lease for concurrent ticks. Android uses a date/activity delivery ledger. Add a personal recurring activity directly in Schedule.
 

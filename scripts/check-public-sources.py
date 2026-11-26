@@ -63,6 +63,8 @@ def perform(pair):
     except Exception as error:
         verified=False
         detail=type(error).__name__+(f" (HTTP {error.code})" if hasattr(error,"code") else "")
+        if isinstance(error,ValueError) and str(error):
+            detail+=": "+str(error).splitlines()[0][:160]
     return {"source":name,"verified":verified,"detail":detail}
 
 

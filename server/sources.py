@@ -147,7 +147,7 @@ def swim(day, p, read=fetch):
     tide_source = "Reviewed station table"
     if not tides:
         try:
-            tides = station_extrema(p)
+            tides = station_extrema(p,day)
             tide_source = "SHOM Mohammedia harbor prediction · local calendar time"
         except Exception:
             gaps.append("SHOM tide table unavailable")

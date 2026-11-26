@@ -30,15 +30,38 @@ def parse_shom(html, zone):
     if not extrema: raise ValueError("No tide extrema")
     return sorted(extrema.values(),key=lambda x:x["at"])
 
-def station_extrema(p):
+def read_station_table(page, day, zone):
+    # SHOM renders the heading, clock label and rows independently. A visible
+    # heading alone can belong to an incomplete table.
+    page.wait_for_function(r"""day => {
+        const text = node => (node.textContent || '').trim();
+        const station = [...document.querySelectorAll('h3')].some(n => /Mohammedia\s*\(Maroc\)/i.test(text(n)));
+        const utc = [...document.querySelectorAll('.chart-label')].some(n => /(?:Hour|Heure)\s+UTC\s*[+-]0(?:0|:00)?\s*$/i.test(text(n)));
+        const ready = [...document.querySelectorAll('table')].some(table => {
+            const heading = table.querySelector('th.tide-title');
+            if (!heading || !text(heading).replace(/\b0(\d)\b/g,'$1').includes(day)) return false;
+            const rows = [...table.querySelectorAll('tr')].map(row =>
+                [...row.querySelectorAll('td')].map(text));
+            return ['HW','LW'].every(type => rows.some(c =>
+                c[0] === type && /^\d{2}:\d{2}$/.test(c[1]) && /^\d+(?:\.\d+)?$/.test(c[2])));
+        });
+        return station && utc && ready;
+    }""",arg=day.strftime("%A %B ")+str(day.day)+day.strftime(", %Y"),timeout=18000)
+    extrema=parse_shom(page.content(),zone)
+    if not any(row["at"].startswith(day.isoformat()) for row in extrema):
+        raise ValueError("No extrema for the requested local date")
+    return extrema
+
+def station_extrema(p, day=None):
     if abs(p["lat"]-33.71078)>0.04 or abs(p["lon"]+7.36798)>0.04: return []
     from playwright.sync_api import sync_playwright
     with sync_playwright() as engine:
         browser=engine.chromium.launch()
         try:
             page=browser.new_page(locale="en-GB",timezone_id="UTC")
-            page.goto(SHOM,wait_until="domcontentloaded",timeout=18000)
-            page.locator("th.tide-title").first.wait_for(timeout=15000)
-            return parse_shom(page.content(),p["zone"])
+            requested=datetime.fromisoformat(day).date() if day else datetime.now(ZoneInfo(p["zone"])).date()
+            start=requested-timedelta(days=1)
+            page.goto(f"{SHOM}/hlt?date={start.isoformat()}&utc=0",wait_until="domcontentloaded",timeout=18000)
+            return read_station_table(page,requested,p["zone"])
         finally: browser.close()
 

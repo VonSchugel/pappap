@@ -31,7 +31,12 @@ fun activities(b:Book):List<ActivityTime>{
     return schedule.namesList().mapNotNull { id->
         val r=schedule.getJSONObject(id)
         if(!r.getBoolean("enabled")) null else ActivityTime(id,r.getString("title"),LocalTime.parse(r.getString("time")),null,r.getBoolean("notify"),r.weekdays())
-    }+b.rows("reminder").map { row->val r=JSONObject(row.body);ActivityTime(row.item,r.getString("title"),LocalTime.parse(r.getString("time")),LocalDate.parse(row.day),r.optBoolean("notify",true)) }
+    }+b.rows("reminder").mapNotNull { row->
+        val r=JSONObject(row.body)
+        try {
+            ActivityTime(row.item,r.getString("title"),LocalTime.parse(r.getString("time")),LocalDate.parse(row.day),r.optBoolean("notify",true))
+        } catch(e:java.time.format.DateTimeParseException){null}
+    }
 }
 object Bells {
     val background=Executors.newSingleThreadExecutor()

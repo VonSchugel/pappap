@@ -50,13 +50,21 @@ class Store:
             if prev and result.get("gaps"):
                 for key in ("stories","events"):
                     if prev.get(key) and key in result and not result[key]:
-                        result[key]=prev[key]; result["summary"]=prev["summary"]
-                        result["gaps"].append("Previous successful items retained")
+                        retained=prev[key]
+                        if key=="stories":
+                            retained=[story for story in retained if story.get("topic") in p["topics"]][:p["length"]]
+                        if retained:
+                            result[key]=retained
+                            result["summary"]=retained[0]["title"] if key=="stories" else prev["summary"]
+                            result["gaps"].append("Previous successful items retained")
             result.update(kind=kind,title=p["schedule"][kind]["title"],day=day,time=p["schedule"][kind]["time"],updated=iso(),demo=False,retryAfter=now+3600)
             with closing(self.connect()) as db:
                 db.execute("BEGIN IMMEDIATE")
                 if db.execute("SELECT token FROM jobs WHERE day=? AND kind=?",(day,kind)).fetchone()==(token,):
                     db.execute("INSERT OR REPLACE INTO reports VALUES(?,?,?)",(day,kind,json.dumps(result)))
+                else:
+                    current=db.execute("SELECT body FROM reports WHERE day=? AND kind=?",(day,kind)).fetchone()
+                    result=json.loads(current[0]) if current else None
                 db.commit()
             return result
         finally:

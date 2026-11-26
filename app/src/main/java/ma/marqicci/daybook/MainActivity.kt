@@ -193,7 +193,12 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
         val time=if(d<current)r?.optString("time") else rule?.optString("time")?:r?.optString("time")
         items+=AgendaItem(time?:"",k,r?.optString("title")?:rule?.optString("title")?:k,r?.optString("summary")?:if(k=="journal")"Return to today’s entry." else "Awaiting publication.")
     }
-    b.rows("reminder",d.toString()).forEach { val r=JSONObject(it.body);items+=AgendaItem(r.getString("time"),it.item,r.getString("title"),"Personal reminder") }
+    b.rows("reminder",d.toString()).forEach { row->
+        val r=JSONObject(row.body)
+        val clock=runCatching { LocalTime.parse(r.optString("time")) }.getOrNull()
+        items+=AgendaItem(clock?.toString()?:"—",row.item,r.getString("title"),
+            if(clock==null)"Personal reminder · time unverified" else "Personal reminder")
+    }
     val previous=b.rows("draft").filter { it.day<d.toString() && it.body.isNotBlank() }.maxByOrNull { it.day }
     val unfinished=b.rows("session").filter { it.day<d.toString() }
         .map { it to ActivitySession.read(it.body) }.filterNot { it.second.complete }
@@ -202,7 +207,10 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     val sorted=items.sortedWith(compareBy<AgendaItem>{it.time}.thenBy { sc.namesList().indexOf(it.id) })
     var now by remember {mutableStateOf(LocalTime.now(ZoneId.of(p.getString("zone"))))}
     LaunchedEffect(d,p.optString("zone")){while(true){now=LocalTime.now(ZoneId.of(p.getString("zone")));delay(30000)}}
-    val next=if(d==current) sorted.firstOrNull { (LocalTime.parse(it.time.ifBlank { "00:00" }))>=now && sessions[it.id]?.complete!=true } else null
+    val next=if(d==current) sorted.firstOrNull { item->
+        val time=runCatching { LocalTime.parse(item.time) }.getOrNull()
+        time!=null && time>=now && sessions[item.id]?.complete!=true
+    } else null
     var showOlder by rememberSaveable {mutableStateOf(false)}
     Screen {
         DayHeader(d,sorted.size,next?.time,next?.title)
@@ -280,20 +288,33 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
         }
     }
 }
+data class EventDeadline(val day:LocalDate,val time:LocalTime?)
+
+fun eventDeadline(event:JSONObject,zone:ZoneId):EventDeadline?{
+    val stamp=event.optString("deadlineAt").takeUnless { it.isBlank() || it=="null" }
+    if(stamp!=null){
+        val local=runCatching { Instant.parse(stamp).atZone(zone) }.getOrNull() ?: return null
+        return EventDeadline(local.toLocalDate(),local.toLocalTime().withSecond(0).withNano(0))
+    }
+    val day=runCatching { LocalDate.parse(event.optString("deadline")) }.getOrNull() ?: return null
+    val time=runCatching { LocalTime.parse(event.optString("time")) }.getOrNull()
+    return EventDeadline(day,time?.withSecond(0)?.withNano(0))
+}
+
 @Composable fun EventCard(b:Book,d:LocalDate,e:JSONObject,demo:Boolean){
     LocalPages.current
     val id=identity(e.optString("url").ifEmpty { e.getString("title")+d });val saved=b.get("event","",id).isNotEmpty()
-    val deadline=e.optString("deadlineAt").takeIf { it.isNotBlank() }?.let { Instant.parse(it).atZone(ZoneId.of(b.prefs().getString("zone"))) }
-    val day=deadline?.toLocalDate()?.toString()?:e.optString("deadline")
-    val time=deadline?.toLocalTime()?.toString()?.take(5)?:e.optString("time")
+    val deadline=eventDeadline(e,ZoneId.of(b.prefs().getString("zone")))
+    val day=deadline?.day?.toString()
+    val time=deadline?.time?.toString()
     CardBox {
-        Heading(e.getString("title"));Caption(e.getString("mode"));Body(e.getString("eligibility"))
-        if(day.isNotBlank())Caption("Apply by $day · $time") else Caption("Application deadline unverified")
+        Heading(e.optString("title","Event"));Caption(e.optString("mode","Format unverified"));Body(e.optString("eligibility","Eligibility unverified"))
+        if(day!=null)Caption("Apply by $day · "+(time?:"Time unverified")) else Caption("Application deadline unverified")
         Web("Organizer",e.optString("url"));Web("Eligibility rules",e.optString("rules"))
         Action(if(saved)"Remove bookmark" else "Bookmark event"){
             if(saved)b.rows("event").firstOrNull { it.item==id }?.let(b::remove) else b.put("event","",id,e.toString())
         }
-        if(day.isNotBlank() && time.isNotBlank()){
+        if(day!=null && time!=null){
             val exists=b.get("reminder",day,id).isNotBlank()
             Action(if(exists)"Deadline added" else "Add deadline to Schedule"){if(!exists){b.put("reminder",day,id,JSONObject().put("title",(if(demo)"Demo · " else "")+e.getString("title")+" · apply").put("time",time).put("notify",true).toString());Bells.reset(b.ctx)}}
         }

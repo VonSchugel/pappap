@@ -87,19 +87,26 @@ def vigilance(day, marine, read):
         levels = ["green","yellow","orange","red"]
         hazards = {"wf":"strong wind","fp":"heavy rain","vc":"heat","vg":"dangerous waves","hd":"dangerous swell","or":"thunderstorms"}
         lines = [a["name"]+" · "+levels[a["level"]]+" · "+", ".join(hazards.get(k,k) for k in a.get("phenos",{})) for a in areas]
-        return (lines or ["No Mohammedia area listed in this DGM bulletin."])+["Issued "+raw["issued"]+" · valid "+day], True
+        return (lines or ["No Mohammedia area listed in this DGM bulletin."])+["Issued "+raw["issued"]+" · valid "+day], bool(areas)
     except Exception:
         return ["Current DGM bulletin unavailable or outside its validity date."], False
 
 def weather(day, p, read=fetch):
     raw, rows = forecast(day,p,read=read)
-    changes, before = [], None
+    thresholds = [("precipitation_probability",50,"Rain becomes more likely","Rain chance eases"),
+                  ("wind_gusts_10m",35,"Gusts strengthen","Gusts ease"),
+                  ("uv_index",3,"UV rises above the planning threshold","UV eases")]
+    changes, previous = [], {}
     for r in rows:
-        flags = tuple((r.get(k) or 0)>=n for k,n in [("precipitation_probability",50),("wind_gusts_10m",35),("uv_index",3)])
-        if before is not None and flags != before:
-            labels = [("Rain becomes more likely","Rain chance eases"),("Gusts strengthen","Gusts ease"),("UV rises above the planning threshold","UV eases")]
-            changes.append(r["time"][11:]+" · "+", ".join(labels[i][0 if flags[i] else 1] for i in range(3) if flags[i]!=before[i]))
-        before = flags
+        changed = []
+        for key,limit,rising,easing in thresholds:
+            value = r.get(key)
+            above = None if value is None else value >= limit
+            if previous.get(key) is not None and above is not None and previous[key] != above:
+                changed.append(rising if above else easing)
+            previous[key] = above
+        if changed:
+            changes.append(r["time"][11:]+" · "+", ".join(changed))
     at = lambda hour: min(rows, key=lambda r:abs(int(r["time"][11:13])-hour))
     summary = "Morning around %s, afternoon %s and evening %s." % tuple(val(at(h),"temperature_2m","°C") for h in (8,15,20))
     if changes:
@@ -109,7 +116,12 @@ def weather(day, p, read=fetch):
     for r in rows:
         hourly.append(f"{r['time'][11:]}   {val(r,'temperature_2m','°C')} · feels {val(r,'apparent_temperature','°C')}\nRain {val(r,'precipitation_probability','%')} · {val(r,'precipitation',' mm')} | Wind {direction(r.get('wind_direction_10m'))} {val(r,'wind_speed_10m',' km/h')} · gust {val(r,'wind_gusts_10m',' km/h')}\nHumidity {val(r,'relative_humidity_2m','%')} · UV {val(r,'uv_index')}")
     official,ok = vigilance(day,False,read)
-    return dict(summary=summary,gaps=[] if ok else ["DGM warning refresh unavailable"],blocks=[block("Changes for outdoor plans",*(changes or ["No threshold crossings in the available hours."])),block("Daylight",f"Sunrise {raw['daily']['sunrise'][0]} · Sunset {raw['daily']['sunset'][0]}"),block("Official warnings",*official,*[r["text"]+" · "+r["issued"] for r in warnings]),block("Hourly forecast",*hourly),block("Forecast record",f"Forecast valid {rows[0]['time']} to {rows[-1]['time']} · {p['zone']}","Model issue time unavailable from the blended endpoint.")],links=[link("Open-Meteo forecast","https://open-meteo.com/en/docs"),link("DGM vigilance",DGM+"/vigilance/generale")]+[link("Official warning",r["source"]) for r in warnings])
+    gaps = [] if ok else ["DGM warning coverage unverified for Mohammedia"]
+    daily = raw.get("daily") or {}
+    daylight = [next(iter(daily.get(key) or []), None) for key in ("sunrise","sunset")]
+    if not all(daylight):
+        gaps.append("Daylight times incomplete")
+    return dict(summary=summary,gaps=gaps,blocks=[block("Changes for outdoor plans",*(changes or ["No threshold crossings in the available hours."])),block("Daylight",f"Sunrise {daylight[0] or 'unknown'} · Sunset {daylight[1] or 'unknown'}"),block("Official warnings",*official,*[r["text"]+" · "+r["issued"] for r in warnings]),block("Hourly forecast",*hourly),block("Forecast record",f"Forecast valid {rows[0]['time']} to {rows[-1]['time']} · {p['zone']}","Model issue time unavailable from the blended endpoint.")],links=[link("Open-Meteo forecast","https://open-meteo.com/en/docs"),link("DGM vigilance",DGM+"/vigilance/generale")]+[link("Official warning",r["source"]) for r in warnings])
 
 def swim(day, p, read=fetch):
     evidence = notices(day,p)
@@ -252,9 +264,15 @@ def hackernews(p,day,read=fetch):
     def one(i):
         try: r=read(HN+f"item/{i}.json")
         except Exception: return None,True
-        if not r or r.get("dead") or r.get("deleted") or r.get("type")!="story": return None,False
+        if not r: return None,False
+        if not isinstance(r,dict): return None,True
+        if r.get("dead") or r.get("deleted") or r.get("type")!="story": return None,False
         discussion=f"https://news.ycombinator.com/item?id={i}"
-        c=candidate(r.get("title",""),r.get("url",discussion),datetime.fromtimestamp(r["time"],timezone.utc).isoformat(),"Announcement",r.get("text",""),score=2+min(3,r.get("score",0)//150),known_date=False)
+        try:
+            when=datetime.fromtimestamp(r["time"],timezone.utc).isoformat()
+            c=candidate(r["title"],r.get("url") or discussion,when,"Announcement",r.get("text") or "",score=2+min(3,(r.get("score") or 0)//150),known_date=False)
+        except (KeyError,TypeError,ValueError,OSError,OverflowError,AttributeError):
+            return None,True
         if c: c["links"].append(link("HN discussion",discussion))
         return c,False
     with futures.ThreadPoolExecutor(max_workers=10) as pool: rows=list(pool.map(one,dict.fromkeys(ids)))
@@ -289,11 +307,24 @@ def edition(day,p,adapters=None):
             try:
                 found,missing=job.result(); stories.extend(found); gaps.extend(missing)
             except Exception: gaps.append(key+" · source unavailable")
-    start=date.fromisoformat(day)-timedelta(days=6)
+    end=date.fromisoformat(day)
+    start=end-timedelta(days=6)
+    zone=ZoneInfo(p["zone"])
+    dated=[]
+    invalid_date=False
+    for story in stories:
+        try:
+            stamp=datetime.fromisoformat(story["seen"].replace("Z","+00:00"))
+            if stamp.utcoffset() is None: raise ValueError("Missing offset")
+            seen=stamp.astimezone(zone).date()
+        except (KeyError,AttributeError,ValueError,OverflowError):
+            invalid_date=True
+            continue
+        if start<=seen<=end and story["topic"] in p["topics"]:
+            dated.append((stamp,story))
+    if invalid_date: gaps.append("Some news items had an unverified publication timestamp")
     keep=[]
-    for s in sorted(stories,key=lambda s:(s["score"],s["seen"],s["url"]),reverse=True):
-        seen=datetime.fromisoformat(s["seen"].replace("Z","+00:00")).astimezone(ZoneInfo(p["zone"])).date()
-        if not start<=seen<=date.fromisoformat(day) or s["topic"] not in p["topics"]: continue
+    for _,s in sorted(dated,key=lambda pair:(pair[1]["score"],pair[0],pair[1]["url"]),reverse=True):
         matches=[k for k in keep if set(k["aliases"]).intersection(s["aliases"])]
         if matches:
             head=matches[0]
@@ -336,7 +367,10 @@ def hacks(day,p,read=fetch,review=remote_rules):
     vetted={canonical(r["url"]):r for r in records}
     remote=[]
     for r in discovered:
-        url=canonical(r["url"]); loc=r.get("displayed_location",{}).get("location","")
+        if not isinstance(r,dict) or not r.get("url"): continue
+        location=r.get("displayed_location")
+        if not isinstance(location,dict) or not isinstance(location.get("location"),str): continue
+        url=canonical(r["url"]); loc=location["location"]
         if url in vetted or r.get("open_state")!="open" or r.get("invite_only"): continue
         if re.search(r"Morocco|Maroc|Casablanca|Rabat|Mohammedia|Marrakech|Tangier",loc,re.I):
             mode="Hybrid" if "hybrid" in (loc+" "+r.get("title","")).lower() else "In person"

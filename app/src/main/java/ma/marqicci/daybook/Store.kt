@@ -141,7 +141,13 @@ class Book(val ctx:Context){
             val records=rows(s,d)
             if(records.isNotEmpty()) appendLine("\n## "+s.replaceFirstChar { it.uppercase() }+"\n")
             records.forEach { r->
-                if(s=="feedback"){ val a=JSONObject(r.body); appendLine("> "+a.getString("quote")); appendLine(a.getString("kind")+" · "+a.getString("response")) }
+                if(s=="feedback"){
+                    val a=JSONObject(r.body)
+                    a.getString("quote").lineSequence().forEach { appendLine("> "+it) }
+                    appendLine()
+                    appendLine(a.getString("kind")+" · "+a.getString("response"))
+                    a.optString("url").takeIf { it.isNotBlank() }?.let { appendLine();appendLine(it) }
+                }
                 else appendLine(r.body)
                 appendLine()
             }

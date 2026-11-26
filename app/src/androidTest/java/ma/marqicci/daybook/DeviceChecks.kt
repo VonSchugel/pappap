@@ -339,5 +339,34 @@ class DeviceChecks {
             Assert.assertTrue(b.reports(day).any { it.getString("kind")=="tech" && !it.getBoolean("demo") })
         } finally { b.connection.edit().remove("url").remove("key").commit() }
     }
+
+    @Test fun deadlineConversionHandlesMidnightAndPartialDates(){
+        val zone=ZoneId.of("Africa/Casablanca")
+        val event=JSONObject().put("deadlineAt","2026-11-26T23:30:00Z")
+        val deadline=requireNotNull(eventDeadline(event,zone))
+        Assert.assertEquals(LocalDate.of(2026,11,27),deadline.day)
+        Assert.assertEquals(LocalTime.of(0,30),deadline.time)
+        Assert.assertNull(eventDeadline(event.put("deadlineAt","unconfirmed"),zone))
+        event.remove("deadlineAt")
+        event.put("deadline","2026-11-27")
+        Assert.assertNull(requireNotNull(eventDeadline(event,zone)).time)
+        Assert.assertNull(eventDeadline(event.put("deadline","2026-02-30"),zone))
+    }
+
+    @Test fun badLegacyReminderLeavesAgendaAndOtherAlarmsAvailable(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs()).toString()
+        val old=Page("reminder",day,"qa-bad-time",JSONObject().put("title","Old reminder").put("time","25:68").toString())
+        val valid=Page("reminder",day,"qa-good-time",JSONObject().put("title","Valid reminder").put("time","21:30").toString())
+        b.edit(listOf(old,valid))
+        try {
+            ui.onNodeWithText("Old reminder").performScrollTo().assertIsDisplayed()
+            ui.onNodeWithText("Personal reminder · time unverified").assertExists()
+            val ids=activities(b).map { it.id }
+            Assert.assertTrue(valid.item in ids)
+            Assert.assertFalse(old.item in ids)
+        } finally {b.edit(removals=listOf(old,valid));b.flush()}
+    }
 }
 

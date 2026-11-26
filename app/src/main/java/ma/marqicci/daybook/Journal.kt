@@ -151,12 +151,25 @@ fun parseCurriculum(raw:String):List<String>{
 @Composable fun Archive(b:Book,open:(LocalDate)->Unit,close:()->Unit){
     val rows=LocalPages.current
     var query by remember { mutableStateOf("") }
-    val dates=rows.filter { it.shelf in setOf("draft","tags","note","feedback","link","question","observation","session") && it.body.isNotBlank() }.map { it.day }.distinct().sortedDescending()
+    val shelves=setOf("draft","tags","note","feedback","link","question","observation","session")
+    val entries=rows.filter { it.shelf in shelves && it.body.isNotBlank() }.groupBy { it.day }
+    val essays=rows.filter { it.shelf=="essay" }.flatMap { row->
+        val essay=JSONObject(row.body)
+        essay.arr("days").texts().map { it to essay }
+    }.groupBy({it.first},{it.second})
+    val dates=(entries.keys+essays.keys).sortedDescending()
     Sheet("Journal archive",close){
         Field("Search entries, tags and notes",query,{query=it})
-        val matches=dates.filter { d->d.contains(query,true) || rows.any { it.day==d && it.shelf in setOf("draft","tags","note","feedback","question","observation","session") && it.body.contains(query,true) } }
+        val matches=dates.filter { d->
+            d.contains(query,true) || entries[d].orEmpty().any { it.body.contains(query,true) } ||
+                essays[d].orEmpty().any { it.optString("title").contains(query,true) || it.optString("body").contains(query,true) }
+        }
         if(matches.isEmpty())Caption("No matching entries.")
-        matches.forEach { day->Action(day+" · "+b.rows("draft",day).firstOrNull { it.body.isNotBlank() }?.body.orEmpty().take(55)){open(LocalDate.parse(day))} }
+        matches.forEach { day->
+            val preview=entries[day].orEmpty().firstOrNull { it.shelf=="draft" }?.body
+                ?: essays[day]?.firstOrNull()?.optString("title").orEmpty()
+            Action(listOf(day,preview.take(55)).filter { it.isNotBlank() }.joinToString(" · ")){open(LocalDate.parse(day))}
+        }
     }
 }
 @Composable fun SectionEditor(b:Book,close:()->Unit){

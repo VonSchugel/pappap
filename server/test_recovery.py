@@ -1,7 +1,6 @@
 """Failure isolation, date boundaries and cached publication regressions."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory

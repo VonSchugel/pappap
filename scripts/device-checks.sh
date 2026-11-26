@@ -51,6 +51,8 @@ run_case archiveFindsEssayOnlyDate
 run_case passageExportRetainsReadingAndQuotedLines
 run_case malformedEventDeadlineCannotCreateAnAlarm
 run_case rapidOfflineEditsStayOnTheirDate
+run_case deadlineConversionHandlesMidnightAndPartialDates
+run_case badLegacyReminderLeavesAgendaAndOtherAlarmsAvailable
 adb install -r app/build/outputs/apk/preview/app-preview.apk
 adb shell pm path "$package.preview"
 adb shell pm path "$package"

@@ -224,5 +224,120 @@ class DeviceChecks {
         }
         ui.onNode(isSelectable() and hasText("Robotics")).performScrollTo().assertIsSelected()
     }
+
+    @Test fun archiveFindsEssayOnlyDate(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs()).minusDays(13)
+        val text="Constraint from the second experiment"
+        b.put("essay","","archive-qa",JSONObject().put("title","Workshop notebook").put("body",text)
+            .put("days",org.json.JSONArray(listOf(day.toString()))).toString())
+        openJournal()
+        ui.onNodeWithContentDescription("Find an entry").performClick()
+        ui.onNodeWithText("Search entries, tags and notes").performTextReplacement(text)
+        ui.onNode(hasText(day.toString(),substring=true) and hasClickAction()).performClick()
+        ui.onNodeWithText(nice(day,"MMM d, yyyy")).assertExists()
+        Assert.assertTrue(b.markdown(day.toString()).contains(text))
+    }
+
+    @Test fun passageExportRetainsReadingAndQuotedLines(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs()).minusDays(3).toString()
+        val quote="Premise one\nPremise two"
+        val source="https://plato.stanford.edu/entries/tarski-truth/"
+        val note=JSONObject().put("quote",quote).put("kind","Find a follow-up reading")
+            .put("snapshot",quote).put("section","study").put("response","Check the definition.").put("url",source)
+        b.put("draft",day,"study",quote+"\nMy conclusion.")
+        b.put("feedback",day,"qa-passage",note.toString())
+        val md=b.markdown(day)
+        Assert.assertTrue("Missing reading URL",md.contains(source))
+        Assert.assertTrue("Every selected line should be quoted",md.contains("> Premise one\n> Premise two"))
+        Assert.assertEquals(quote+"\nMy conclusion.",b.get("draft",day,"study"))
+    }
+
+    @Test fun datedBookmarksAndBeachObservations(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs()).toString()
+        val story=b.reports(day).single { it.getString("kind")=="tech" }.arr("stories").objects().first {it.getString("topic")=="Robotics"}
+        val id=identity(story.getString("url"))
+        ui.onNodeWithTag("nav-2").performClick()
+        // The topic selector also has a button in the pinned reading controls.
+        if(ui.onAllNodesWithText("Edition start").fetchSemanticsNodes().isNotEmpty())ui.onNodeWithText("Edition start").performClick()
+        ui.onNode(isSelectable() and hasText("Robotics")).performScrollTo().performClick()
+        ui.onNodeWithText("Bookmark").performScrollTo().performClick()
+        ui.onNodeWithText("Save to journal").performScrollTo().performClick()
+        Assert.assertEquals(story.getString("title")+"\n"+story.getString("url"),b.get("note",day,id))
+        Assert.assertEquals(1,b.rows("bookmark").count {it.item==id})
+        ui.onNodeWithTag("nav-0").performClick()
+        ui.onNodeWithText("Mannesmann swim check").performScrollTo().performClick()
+        ui.onNodeWithText("Waves, gap flow, flags and exit").performScrollTo().performTextReplacement("Observed posted flag at the exit.")
+        ui.onNodeWithText("Save observation").performScrollTo().performClick()
+        ui.waitUntil(10000){b.rows("observation",day).any { it.body.contains("Observed posted flag") }}
+        Assert.assertTrue(b.markdown(day).contains("Observed posted flag"))
+    }
+
+    @Test fun malformedEventDeadlineCannotCreateAnAlarm(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val day=today(b.prefs()).toString()
+        val e=JSONObject().put("title","Test event").put("url","https://example.org/fixture-event")
+            .put("mode","Remote").put("eligibility","Reviewed test entry").put("deadline","2026-02-30").put("time","25:68")
+        val report=JSONObject().put("kind","hacks").put("title","Hackathon digest").put("summary","One fixture")
+            .put("events",org.json.JSONArray().put(e))
+        val row=Page("report",day,"hacks",report.toString())
+        b.edit(listOf(row))
+        try {
+            ui.onNodeWithText("Hackathon digest").performScrollTo().performClick()
+            ui.onNodeWithText("Application deadline unverified").assertExists()
+            ui.onNodeWithText("Add deadline to Schedule").assertDoesNotExist()
+        } finally { b.remove(row);b.flush() }
+    }
+
+    @Test fun rapidOfflineEditsStayOnTheirDate(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val first=today(b.prefs()).minusDays(20).toString()
+        val second=today(b.prefs()).minusDays(19).toString()
+        repeat(120){n->
+            b.put("draft",first,"study","Argument A "+n)
+            b.put("draft",second,"study","Argument B "+n)
+        }
+        b.flush()
+        val persisted=b.db.pages().all().filter { it.shelf=="draft" && it.item=="study" }
+        Assert.assertEquals("Argument A 119",persisted.single{it.day==first}.body)
+        Assert.assertEquals("Argument B 119",persisted.single{it.day==second}.body)
+    }
+
+    @Test fun realServerRecoversPendingChanges(){
+        val b=ctx.book
+        ui.waitUntil(10000){b.ready.value}
+        val args=androidx.test.platform.app.InstrumentationRegistry.getArguments()
+        val token=requireNotNull(args.getString("apiToken"))
+        val day=today(b.prefs()).toString()
+        b.settings { p->
+            val sources=p.getJSONObject("sources")
+            sources.namesList().forEach { sources.put(it,false) }
+            p.getJSONObject("schedule").getJSONObject("tech").put("time","08:17")
+        }
+        b.connection.edit().putString("url","http://127.0.0.1:18731").putString("key","wrong-credential").commit()
+        try {
+            val rejected=runCatching { Api.sync(b,day) }.exceptionOrNull()
+            Assert.assertTrue("Expected an explicit authentication failure: "+rejected,rejected?.message?.contains("401")==true)
+            Assert.assertTrue(b.get("meta","","pending").isNotEmpty())
+            b.connection.edit().putString("key",token).commit()
+            Api.sync(b,day,"tech")
+            Api.sync(b,day,"tech")
+            Assert.assertEquals("",b.get("meta","","pending"))
+            Assert.assertEquals(1,b.rows("report",day).count { it.item=="tech" })
+            val report=b.reports(day).single { it.getString("kind")=="tech" }
+            Assert.assertFalse(report.getBoolean("demo"))
+            Assert.assertEquals("08:17",report.getString("time"))
+            Assert.assertEquals(day,report.getString("day"))
+            b.connection.edit().remove("url").remove("key").commit()
+            Assert.assertTrue(b.reports(day).any { it.getString("kind")=="tech" && !it.getBoolean("demo") })
+        } finally { b.connection.edit().remove("url").remove("key").commit() }
+    }
 }
 

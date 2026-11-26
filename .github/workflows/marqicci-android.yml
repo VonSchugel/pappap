@@ -8,6 +8,15 @@ permissions:
   contents: read
 jobs:
   android:
+    name: Android API ${{ matrix.api }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 26
+            arch: x86
+          - api: 35
+            arch: x86_64
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -29,11 +38,13 @@ jobs:
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$BOOK_DIR/app/build/outputs/apk/$variant/app-$variant.apk"
           done
       - uses: actions/upload-artifact@v7
+        if: matrix.api == 35
         with:
           path: ${{ env.BOOK_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           archive: false
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
+        if: matrix.api == 35
         with:
           path: ${{ env.BOOK_DIR }}/app/build/outputs/apk/preview/app-preview.apk
           archive: false
@@ -43,17 +54,22 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install connected-test service
+        run: cd "$BOOK_DIR" && python -m pip install -r server/requirements.txt
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          arch: x86_64
+          api-level: ${{ matrix.api }}
+          arch: ${{ matrix.arch }}
           profile: pixel_6
           script: cd "$BOOK_DIR" && bash scripts/device-checks.sh
       - name: Save emulator screenshots
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: screen-previews
+          name: screen-previews-api-${{ matrix.api }}
           path: ${{ env.BOOK_DIR }}/build/ui-review/*.png
           if-no-files-found: warn
       - name: Inspect demo screen layout

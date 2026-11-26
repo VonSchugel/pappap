@@ -1,5 +1,13 @@
 # Verification record
 
+## Version 0.3 · 26 November 2026
+
+The signed debug and side-by-side preview APKs installed on an Android 15 emulator. All 13 Android checks and 17 server tests passed. The n8n clock published one Tech Brief while no Android client was running.
+
+The emulator reopened an offline journal draft after a force-stop and edited the same draft in focused and full-entry views. It completed a session on an earlier date and verified that the current date stayed open. It expanded schedule controls and hourly weather, and restored the Robotics edition at the end of its article after tab switching, activity recreation and a force-stop. The screenshot archive includes all four tabs, focused writing, and Today in dark mode at 150% system font size.
+
+[Verified run and downloads](https://github.com/VonSchugel/pappap/actions/runs/45743045946) · [Screen previews](https://github.com/VonSchugel/pappap/actions/runs/45743045946/artifacts/15082242069)
+
 ## Reusable activities · 25 November 2026
 
 Version 0.2 passed seven Android 15 instrumentation checks and 17 backend tests. With networking disabled, the emulator created a project from the template picker, selected its repeat days, typed measurements and force-stopped the app. After restart it recovered the measurements. A dated session retained its original prompts after the activity was renamed and paused. Completing the older session removed it from unfinished work and left the other date open. Its Markdown export contained the original measurements.

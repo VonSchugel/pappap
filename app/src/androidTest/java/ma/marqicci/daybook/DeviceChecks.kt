@@ -68,12 +68,27 @@ class DeviceChecks {
         ui.waitUntil(10000) { b.ready.value }
         val network = ctx.getSystemService(android.net.ConnectivityManager::class.java)
         Assert.assertNull(network.activeNetwork)
-        Assert.assertTrue(b.phoneModel.status.value.ready)
+        val model = b.phoneModel
+        Assert.assertFalse(model.status.value.ready)
+        val wrong = java.io.File(ctx.cacheDir, "wrong.gguf").apply { writeText("truncated") }
+        ui.runOnIdle { model.install(Uri.fromFile(wrong)) }
+        ui.waitUntil(10000) { model.status.value.error.contains("verification failed") }
+        val source = java.io.File(ctx.cacheDir, "pappap-smollm2.gguf")
+        ui.runOnIdle { model.install(Uri.fromFile(source)) }
+        ui.waitUntil(90000) { model.status.value.ready || model.status.value.error.isNotEmpty() }
+        Assert.assertTrue(model.status.value.error, model.status.value.ready)
         val reply = kotlinx.coroutines.runBlocking {
             b.phoneModel.generate("Answer in one word.", "What is the capital city of France?", 20)
         }
         Assert.assertTrue("Model response was: " + reply, reply.contains("Paris", ignoreCase = true))
         ui.onNodeWithText("Workflows").performScrollTo().performClick()
+        ui.onNodeWithText("Design a workflow").performScrollTo().performClick()
+        ui.onNodeWithText("What should this workflow help you do?").performScrollTo()
+            .performTextReplacement("Turn my meeting notes into a list of tasks with owners.")
+        ui.onNodeWithText("Propose steps").performScrollTo().performClick()
+        ui.waitUntil(180000) { ui.onAllNodesWithText("Use these steps").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithText("Use these steps").performScrollTo().performClick()
+        ui.onNodeWithText("Cancel").performClick()
         val p = b.prefs().getJSONObject("schedule")
         val id = p.namesList().single { p.getJSONObject(it).optString("title") == "Shift handoff" }
         val date = today(b.prefs()).toString()

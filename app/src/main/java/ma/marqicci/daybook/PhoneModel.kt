@@ -30,7 +30,7 @@ class PhoneModel(private val context: Context) {
 
     // Called on the main thread. The transfer survives a rotation or tab change.
     fun install(uri: Uri? = null) {
-        if (!supported || status.value.ready || transfer?.isActive == true) return
+        if (!supported || status.value.ready || transfer?.isCompleted == false) return
         status.value = ModelStatus(false, 0)
         transfer = scope.launch {
             val part = File(file.parentFile, file.name + ".part")
@@ -83,13 +83,13 @@ class PhoneModel(private val context: Context) {
     }
     fun cancelInstall() { transfer?.cancel() }
 
-    suspend fun generate(instruction: String, input: String, limit: Int = 140): String = inference.withLock {
+    suspend fun generate(instruction: String, input: String, limit: Int = 140, planning: Boolean = false): String = inference.withLock {
         check(supported && file.isFile) { "Install the phone model in Workflows first." }
         fun clean(s: String) = s.replace("<|", "< |")
         val prompt = "<|im_start|>system\n${clean(instruction)}<|im_end|>\n<|im_start|>user\n${clean(input)}<|im_end|>\n<|im_start|>assistant\n"
         val result = runInterruptible(Dispatchers.Default) {
             try {
-                LocalInference.generate(file.absolutePath, prompt.toByteArray(), limit).toString(Charsets.UTF_8).trim()
+                LocalInference.generate(file.absolutePath, prompt.toByteArray(), limit, planning).toString(Charsets.UTF_8).trim()
             } catch (e: LinkageError) { throw IllegalStateException("The inference runtime could not load on this device.", e) }
         }
         check(result.isNotEmpty()) { "The model returned an empty answer. Revise the instruction and retry." }

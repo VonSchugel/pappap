@@ -54,8 +54,8 @@ if [ "$api_level" -eq 35 ]; then
   curl -fsSL --retry 3 --max-time 300 -o "$weights" 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/ddde4293f6050e8b81cca2ea2438c2fe444a0d5b/SmolLM2-360M-Instruct-Q4_K_M.gguf'
   echo "2fa3f013dcdd7b99f9b237717fa0b12d75bbb89984cc1274be1471a465bac9c2  $weights" | sha256sum -c -
   adb push "$weights" /data/local/tmp/pappap-smollm2.gguf
-  adb shell run-as "$package" mkdir -p no_backup
-  adb shell "run-as $package sh -c 'cat /data/local/tmp/pappap-smollm2.gguf > no_backup/smollm2-360m-q4km.gguf'"
+  adb shell run-as "$package" mkdir -p cache
+  adb shell "run-as $package sh -c 'cat /data/local/tmp/pappap-smollm2.gguf > cache/pappap-smollm2.gguf'"
   adb shell am force-stop "$package"
   run_case realPhoneModelWorksOffline
 fi

@@ -85,6 +85,8 @@ fun readProposedSteps(output: String): List<String> {
     var setup by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var job by remember { mutableStateOf<Job?>(null) }
+    var preview by rememberSaveable { mutableStateOf("") }
+    var previewGoal by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val status by model.status.collectAsState()
     Field("What should this workflow help you do?", goal, { goal = it.take(500) }, false)
@@ -94,8 +96,9 @@ fun readProposedSteps(output: String): List<String> {
             job = scope.launch {
                 try {
                     error = ""
-                    val result = model.generate("Design a repeatable workflow. Return exactly three short numbered instructions, one per line. First collect the user's notes, then transform them, then produce a useful result. No introduction.", request)
-                    apply(request, readProposedSteps(result))
+                    val result = model.generate("Design a repeatable workflow. Return exactly three short numbered instructions, one per line. First collect the user's notes, then transform them, then produce a useful result. No introduction.", request, limit = 200, planning = true)
+                    preview = readProposedSteps(result).joinToString("\n")
+                    previewGoal = request
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { error = e.message ?: "Could not draft the workflow." }
                 finally { job = null }
@@ -103,6 +106,13 @@ fun readProposedSteps(output: String): List<String> {
         }) { Text(if (job == null) "Propose steps" else "Drafting on phone…") }
         if (job != null) Action("Stop drafting") { job?.cancel() }
     } else Action("Set up model to propose steps") { setup = true }
+    if (preview.isNotEmpty()) Sheet("Proposed workflow", { preview = "" }, "Discard") {
+        preview.lines().forEachIndexed { i, value -> Body("${i + 1}. $value") }
+        Button(onClick = {
+            apply(previewGoal, preview.lines())
+            preview = ""
+        }) { Text("Use these steps") }
+    }
     if (error.isNotBlank()) Caption(error)
     if (setup) ModelSetup(model) { setup = false }
 }

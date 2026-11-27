@@ -24,6 +24,69 @@ class DeviceChecks {
     val sample="An offline premise survives an Android process restart."
     fun openJournal(){ui.waitUntil(10000){ctx.book.ready.value};ui.onNodeWithText("Continue journal",substring=true).performClick()}
 
+    @Test fun workflowStudioRoundTrip() {
+        val book = ctx.book
+        ui.waitUntil(10000) { book.ready.value }
+        ui.onNodeWithText("Workflows").performScrollTo().performClick()
+        ui.onNodeWithText("Design a workflow").performScrollTo().performClick()
+        ui.onNodeWithText("Activity name").performScrollTo().performTextReplacement("Shift handoff")
+        ui.onNodeWithText("Session prompts · one per line").performScrollTo()
+            .performTextReplacement("Shift notes\nExtract outstanding work\nList follow-up checks")
+        ui.onNodeWithText("Save workflow").performScrollTo().performClick()
+        ui.onNodeWithText("Open run · ", substring=true).performScrollTo().performClick()
+        ui.onNodeWithText("Shift notes").performScrollTo().performTextReplacement("Motor 3 needs alignment.")
+        ui.onNodeWithText("← Workflows").performScrollTo().performClick()
+        val schedule = book.prefs().getJSONObject("schedule")
+        val id = schedule.namesList().single { schedule.getJSONObject(it).optString("title") == "Shift handoff" }
+        Assert.assertFalse(schedule.getJSONObject(id).getBoolean("enabled"))
+        val date = today(book.prefs()).toString()
+        book.flush()
+        val row = book.db.pages().all().single { it.shelf == "session" && it.item == id && it.day == date }
+        Assert.assertEquals("Motor 3 needs alignment.", ActivitySession.read(row.body).answers.first())
+        Assert.assertTrue(book.markdown(date).contains("Motor 3 needs alignment."))
+    }
+
+    @Test fun workflowChainingAndValidation() = kotlinx.coroutines.runBlocking {
+        val base = ActivitySession("Lab", "12:00", listOf("Input","Measure","Saved note","Next check"),
+            listOf("Bench A","","Keep this",""), false)
+        val calls = mutableListOf<String>()
+        val result = draftRemaining(base, {}) { _, input ->
+            calls.add(input)
+            if (calls.size == 1) "Measure resistance" else "Review resistance"
+        }
+        Assert.assertEquals(2, calls.size)
+        Assert.assertTrue(calls.last().contains("Measure resistance"))
+        Assert.assertTrue(calls.last().contains("Keep this"))
+        Assert.assertEquals(listOf("Bench A","Measure resistance","Keep this","Review resistance"), result.answers)
+        Assert.assertEquals("", base.answers[1])
+        Assert.assertEquals(listOf("Record notes","Name next action"), readProposedSteps("Steps:\n1. Record notes\n2. Name next action"))
+        Assert.assertTrue(runCatching { readProposedSteps("1. Same\n2. Same") }.isFailure)
+    }
+
+    @Test fun realPhoneModelWorksOffline() {
+        val b = ctx.book
+        ui.waitUntil(10000) { b.ready.value }
+        val network = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        Assert.assertNull(network.activeNetwork)
+        Assert.assertTrue(b.phoneModel.status.value.ready)
+        val reply = kotlinx.coroutines.runBlocking {
+            b.phoneModel.generate("Answer in one word.", "What is the capital city of France?", 20)
+        }
+        Assert.assertTrue("Model response was: " + reply, reply.contains("Paris", ignoreCase = true))
+        ui.onNodeWithText("Workflows").performScrollTo().performClick()
+        val p = b.prefs().getJSONObject("schedule")
+        val id = p.namesList().single { p.getJSONObject(it).optString("title") == "Shift handoff" }
+        val date = today(b.prefs()).toString()
+        ui.onNodeWithText("Open run · ", substring = true).performScrollTo().performClick()
+        ui.onNodeWithText("Draft remaining steps").performScrollTo().performClick()
+        ui.waitUntil(180000) { ui.onAllNodesWithText("Apply to this run").fetchSemanticsNodes().isNotEmpty() }
+        val before = ActivitySession.read(b.get("session", date, id))
+        Assert.assertTrue(before.answers.drop(1).all { it.isBlank() })
+        ui.onNodeWithText("Apply to this run").performScrollTo().performClick()
+        ui.waitUntil(5000) { ActivitySession.read(b.get("session", date, id)).answers.all { it.isNotBlank() } }
+        Assert.assertEquals(before.answers.first(), ActivitySession.read(b.get("session", date, id)).answers.first())
+    }
+
     @Test fun verifyOfflineTransports(){
         val network=ctx.getSystemService(android.net.ConnectivityManager::class.java)
         ui.waitUntil(15000){network.activeNetwork==null}

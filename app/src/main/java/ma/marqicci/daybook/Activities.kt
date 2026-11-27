@@ -36,7 +36,9 @@ private val starters = linkedMapOf(
     "Study" to listOf("Learning goal", "What I worked out", "Question to revisit"),
     "Project" to listOf("What I planned to build", "What I tried", "Next experiment"),
     "Writing" to listOf("Working question", "Draft", "Next revision"),
-    "Review" to listOf("What changed", "What needs attention", "Next action")
+    "Review" to listOf("What changed", "What needs attention", "Next action"),
+    "Meeting" to listOf("Meeting notes", "Extract decisions", "List owners and next actions"),
+    "Handover" to listOf("Shift notes", "Summarize current status", "List open issues and next checks")
 )
 
 data class ActivitySession(
@@ -77,21 +79,26 @@ data class ActivitySession(
     if (days.isEmpty()) Caption("Select at least one day.")
 }
 
-@Composable fun ActivityEditor(b: Book, id: String?, close: () -> Unit) {
+@Composable fun ActivityEditor(b: Book, id: String?, smart: Boolean = false, close: () -> Unit) {
     val original = remember(id) { id?.let { b.prefs().getJSONObject("schedule").optJSONObject(it) } }
     var title by rememberSaveable { mutableStateOf(original?.optString("title").orEmpty()) }
     var clock by rememberSaveable { mutableStateOf(original?.optString("time") ?: "12:00") }
     var repeat by rememberSaveable { mutableStateOf((original?.weekdays() ?: everyDay).sorted().joinToString(",")) }
     val days = repeat.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+    var scheduled by rememberSaveable { mutableStateOf(original?.optBoolean("enabled") ?: !smart) }
     var template by rememberSaveable { mutableStateOf("Custom") }
     var lines by rememberSaveable { mutableStateOf((original?.arr("prompts")?.texts().orEmpty()
         .ifEmpty { starters.getValue("Custom") }).joinToString("\n")) }
     val prompts = lines.lines().map { it.trim() }.filter { it.isNotEmpty() }
     val valid = title.isNotBlank() && title.trim().length <= 100 && days.isNotEmpty() &&
         prompts.size in 1..8 && prompts.all { it.length <= 100 } && prompts.distinct().size == prompts.size
-    Sheet(if (id == null) "New activity" else "Edit activity", close, closeLabel = "Cancel") {
+    Sheet(if (smart) "Workflow designer" else if (id == null) "New activity" else "Edit activity", close, closeLabel = "Cancel") {
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
         val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        if (smart) WorkflowDesigner(b.phoneModel) { goal, steps ->
+            if (title.isBlank()) title = goal.take(100)
+            lines = steps.joinToString("\n")
+        }
         if (id == null) {
             Caption("Start from a template")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -105,8 +112,11 @@ data class ActivitySession(
             }
         }
         Field("Activity name", title, { title = it.take(100) })
-        ClockButton("Time", clock) { clock = it }
-        WeekdaySelector(days) { repeat = it.sorted().joinToString(",") }
+        if (smart) Toggle("Repeat on schedule", scheduled) { scheduled = it }
+        if (!smart || scheduled) {
+            ClockButton("Time", clock) { clock = it }
+            WeekdaySelector(days) { repeat = it.sorted().joinToString(",") }
+        }
         Field("Session prompts · one per line", lines, { lines = it }, false)
         if (prompts.size !in 1..8 || prompts.any { it.length > 100 } || prompts.distinct().size != prompts.size)
             Caption("Use 1–8 distinct prompts, up to 100 characters each.")
@@ -115,13 +125,13 @@ data class ActivitySession(
             b.settings { prefs ->
                 val schedule = prefs.getJSONObject("schedule")
                 val rule = schedule.optJSONObject(key) ?: JSONObject().put("enabled", true).put("notify", false)
-                schedule.put(key, rule.put("title", title.trim()).put("time", clock)
+                schedule.put(key, rule.put("enabled", scheduled).put("title", title.trim()).put("time", clock)
                     .put("weekdays", JSONArray(days.sorted())).put("prompts", JSONArray(prompts)))
             }
             focus.clearFocus()
             keyboard?.hide()
             close()
-        }) { Text(if (id == null) "Create activity" else "Save changes") }
+        }) { Text(if (smart) "Save workflow" else if (id == null) "Create activity" else "Save changes") }
     }
 }
 
@@ -156,6 +166,9 @@ data class ActivitySession(
                     Caption(prompt); Body(session.answers[i].ifBlank { "—" })
                 } else {
                     var field by remember(date,id,i){mutableStateOf(TextFieldValue(session.answers[i]))}
+                    LaunchedEffect(session.answers[i]) {
+                        if (field.text != session.answers[i]) field = TextFieldValue(session.answers[i])
+                    }
                     OutlinedTextField(value=field,onValueChange={next->
                         val changed=next.text!=field.text
                         field=next
@@ -169,6 +182,10 @@ data class ActivitySession(
                 }
             }
         }
+        if (!session.complete) RunAssistant(b, session, {
+            b.get("session", date, id).takeIf { it.isNotEmpty() }?.let { ActivitySession.read(it) }
+                ?: b.prefs().getJSONObject("schedule").optJSONObject(id)?.let { ActivitySession.fromRule(it) } ?: session
+        }, ::save)
         if (stored.isEmpty()) Action("Start session") { save(session) }
         if (stored.isNotEmpty()) {
             val saved by b.saved.collectAsState()

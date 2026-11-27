@@ -92,6 +92,11 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     var dayOverride by rememberSaveable { mutableStateOf(initialDay) }
     var tab by rememberSaveable { mutableIntStateOf(if(open=="journal")3 else if(open=="tech")2 else 0) }
     var detail by rememberSaveable { mutableStateOf(open?.takeUnless { it == "journal" || it == "tech" }) }
+    var fromWorkflows by rememberSaveable { mutableStateOf(false) }
+    fun leaveDetail() {
+        detail = if (fromWorkflows) "workflows" else null
+        fromWorkflows = false
+    }
     val day=dayOverride?.let(LocalDate::parse)?:current
     val screenState=rememberSaveableStateHolder()
     val screenKey="$day/$tab/${detail.orEmpty()}"
@@ -117,8 +122,8 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
         finally{busy=false}
     }
     LaunchedEffect(Unit){Bells.reset(b.ctx)}
-    fun select(t:Int){tab=t;detail=null;message="";if(t==3)dayOverride=null}
-    BackHandler(enabled=detail!=null || tab!=0){if(detail!=null)detail=null else select(0)}
+    fun select(t:Int){fromWorkflows=false;tab=t;detail=null;message="";if(t==3)dayOverride=null}
+    BackHandler(enabled=detail!=null || tab!=0){if(detail!=null)leaveDetail() else select(0)}
     val tabs=listOf("Today","Schedule","Tech Brief","Journal")
     val fatal by b.error.collectAsState()
     LaunchedEffect(message){if(message.isNotBlank()){snacks.showSnackbar(message,withDismissAction=true);message=""}}
@@ -146,7 +151,7 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
                     Mark(R.drawable.ic_journal,Modifier.size(23.dp),leaf)
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)){
-                        Text("Marqicci",color=ink,fontFamily=FontFamily.Serif,fontWeight=FontWeight.Bold,fontSize=23.sp,lineHeight=26.sp)
+                        Text("Pappap",color=ink,fontFamily=FontFamily.Serif,fontWeight=FontWeight.Bold,fontSize=23.sp,lineHeight=26.sp)
                         if(!connected) Text(if(b.reports(day.toString()).any { it.optBoolean("demo") }) "Demo day" else "Offline",
                             color=muted,fontSize=11.sp,lineHeight=14.sp)
                     }
@@ -157,7 +162,8 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
                 if(fatal.isNotEmpty())Text(fatal,Modifier.padding(12.dp),color=MaterialTheme.colorScheme.error)
                 key(screenKey){screenState.SaveableStateProvider(screenKey){
                     when {
-                        detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!,if(tab==3)"← Journal" else "← Agenda"){detail=null}
+                        detail=="workflows"->WorkflowStudio(b,day,{detail=null}){id->fromWorkflows=true;detail=id}
+                        detail?.startsWith("activity-")==true->SessionScreen(b,day,detail!!,if(fromWorkflows)"← Workflows" else if(tab==3)"← Journal" else "← Agenda"){leaveDetail()}
                         detail!=null->ReportScreen(b,day,detail!!,{detail=null},{sync(detail)})
                         tab==0->Today(b,day,{k->if(k=="tech")tab=2 else if(k=="journal")tab=3 else detail=k},{dayOverride=null},
                             {old->dayOverride=old;tab=3},{old,id->dayOverride=old;detail=id})
@@ -214,6 +220,7 @@ private val tabIcons=listOf(R.drawable.ic_today,R.drawable.ic_calendar,R.drawabl
     var showOlder by rememberSaveable {mutableStateOf(false)}
     Screen {
         DayHeader(d,sorted.size,next?.time,next?.title)
+        OutlinedButton(onClick={open("workflows")}) { Mark(R.drawable.ic_activity,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("Workflows") }
         if(d!=current)Action("Return to today",reset)
         if(unfinished.isNotEmpty() || previous!=null){
             Heading("Pick up unfinished work")

@@ -44,6 +44,7 @@ class Daybook:Application(){
 val Context.book:Book get()=(applicationContext as Daybook).book
 
 class Book(val ctx:Context){
+    val phoneModel by lazy { PhoneModel(ctx) }
     val db=Room.databaseBuilder(ctx,BookDb::class.java,"marqicci.db").build()
     private val writer=Executors.newSingleThreadExecutor()
     val state=MutableStateFlow<List<Page>>(emptyList())

@@ -1,8 +1,30 @@
-# Marqicci
+# Pappap 2.0
 
-Marqicci is a single-user native Android daybook for Mohammedia. Today, Schedule, Tech Brief and Journal share a local calendar date. The first launch creates one labeled example day. Select **Continue journal**, type a paragraph, and wait for **Saved on this device**. Use the date button to reopen an earlier page. Journal drafts, observations, bookmarks, passages and essays live in Room on the phone.
+Pappap pairs the Marqicci daybook with a general-purpose workflow editor and a language model that runs on the phone. Today, Schedule, Tech Brief and Journal share a local calendar date. The first launch creates one labeled example day. Select **Continue journal**, type a paragraph, and wait for **Saved on this device**. Use the date button to reopen an earlier page. Journal drafts, observations, bookmarks, passages and essays live in Room on the phone.
 
-## Reading and writing in version 0.3.1
+## Workflows
+
+Open **Today → Workflows → Design a workflow**. Enter a name and one instruction per line, pick a template, or describe a goal and tap **Propose steps**. Edit, reorder or remove the proposed lines before saving. Workflows run on demand by default. Turn on **Repeat on schedule** for a time and weekdays. A run belongs to the selected date, so reopening it resumes that day's answers.
+
+For example, create **Shift handoff** with three steps: “Shift notes”, “Summarize outstanding issues”, and “List the next checks”. Open a run, type your notes into the first field, then tap **Draft remaining steps**. The model works through empty fields in order and passes each draft to the next step. Review and edit the proposals, then tap **Apply to this run**. Discarding proposals preserves the original answers. Sessions also appear in the day's Markdown export.
+
+### Install the phone model
+
+Open **Workflows → Set up phone model → Download · 271 MB**. You can also transfer the exact GGUF file to the phone and use **Import matching GGUF file**. Setup verifies SHA-256 before installing. The app calls llama.cpp directly inside the Android process. Model input, generated drafts and session answers stay on the device. If a Marqicci server is configured, it receives saved workflow definitions as part of schedule preferences. The model runs in the foreground on 64-bit ARM and x86 Android. Manual workflows also work on 32-bit devices. Allow 280 MB of free storage for installation. Available RAM, CPU speed and thermal limits affect inference. Long inputs that exceed the 2,048-token budget show an error and can be shortened.
+
+The default is the English [SmolLM2-360M-Instruct Q4_K_M file](https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/blob/ddde4293f6050e8b81cca2ea2438c2fe444a0d5b/SmolLM2-360M-Instruct-Q4_K_M.gguf). Its size makes it practical to transfer. Review generated steps and check names, dates and claims against the source notes. Pappap executes text transformations. Publishing messages, reading other apps and unattended inference are outside this release.
+
+### Design and implementation references
+
+| Product or runtime | Decision for Pappap |
+| --- | --- |
+| [Automate flows](https://llamalab.com/automate/doc/flow.html) | Give each step one explicit job and store an ordered, reusable routine. |
+| [Apple Shortcuts variables](https://support.apple.com/guide/shortcuts/use-variables-apdd02c2780c/ios) | Supply earlier step outputs to later instructions automatically. |
+| [Gemini Nano](https://developer.android.com/ai/gemini-nano) | AICore is convenient on supported phones. Pappap uses an app-controlled model file for offline provisioning across vendors. |
+| [LiteRT-LM Android](https://ai.google.dev/edge/litert-lm/android) | A viable accelerated runtime with a separate model format. The existing Kotlin toolchain and the small GGUF model favored llama.cpp. |
+| [llama.cpp Android](https://github.com/ggml-org/llama.cpp/blob/v1.1.0/docs/android.md) | Compile a pinned portable CPU runtime, limit context and threads, and verify the same weights on an offline Android emulator. |
+
+## Daybook
 
 Today shows the next scheduled item in local time and offers unfinished work above the agenda. Tap an agenda row for the full report. On the weather page, expand **Hourly forecast** for the detailed readings. In Schedule, tap a recurring item to change it or check its next run.
 
@@ -12,7 +34,7 @@ Tech Brief remembers the reading position for each topic and date on this device
 
 Android 8.0 (API 26) or later is required. Download **app-debug.apk** under Artifacts on a successful Android CI run while signed in to GitHub. Open the APK on the phone, or use `adb install -r app-debug.apk`. A build on a different machine may use a different debug signing key. Export existing entries before uninstalling an earlier build. Android clears local journal data on uninstall.
 
-To build from source, open this directory in Android Studio with JDK 17 and Android SDK Platform 35 installed. Use **Run → Run 'app'**, or run the wrapper below. The first build downloads Gradle and Maven dependencies.
+To build from source, open this directory in Android Studio with JDK 17 and Android SDK Platform 35 installed. Use **Run → Run 'app'**, or run the wrapper below. The first build downloads Gradle, Maven dependencies and the pinned llama.cpp sources. Android's native build uses NDK 27.2.12479018 and CMake 3.22.1.
 
 ```powershell
 .\gradlew.bat :app:assembleDebug
@@ -46,7 +68,7 @@ For a controls lab, choose **Project**, name it “Motor step response”, and r
 
 Session notes work offline and appear in the day’s journal Markdown export. Preferences sync to FastAPI, including weekdays for scheduled reports. Update the server with `docker compose up -d --build` to apply weekday changes to server publications.
 
-CI supplies two signed builds. **app-debug.apk** uses the original application ID. **app-preview.apk** installs as **Marqicci Activities** alongside the November 22 build and starts with a separate local notebook. Use the preview if you already have valuable entries and Android rejects an in-place debug update because the signing keys differ.
+CI supplies two signed builds. **app-debug.apk** uses the original application ID. **app-preview.apk** installs as **Pappap Preview** alongside the November 22 build and starts with a separate local notebook. Use the preview if you already have valuable entries and Android rejects an in-place debug update because the signing keys differ.
 
 ### Journal, newsletter and events
 

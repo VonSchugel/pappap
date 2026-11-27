@@ -45,6 +45,20 @@ if ((failed)); then
   adb shell ip link show || true
 fi
 mkdir -p build/ui-review
+run_case workflowStudioRoundTrip
+run_case workflowChainingAndValidation
+if [ "$api_level" -eq 35 ]; then
+  # The host stages the same pinned weights as the app's setup screen.
+  # Inference and the reviewed two-step run both execute on the offline Android guest.
+  weights=build/smollm2-360m.gguf
+  curl -fsSL --retry 3 --max-time 300 -o "$weights" 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/ddde4293f6050e8b81cca2ea2438c2fe444a0d5b/SmolLM2-360M-Instruct-Q4_K_M.gguf'
+  echo "2fa3f013dcdd7b99f9b237717fa0b12d75bbb89984cc1274be1471a465bac9c2  $weights" | sha256sum -c -
+  adb push "$weights" /data/local/tmp/pappap-smollm2.gguf
+  adb shell run-as "$package" mkdir -p no_backup
+  adb shell "run-as $package sh -c 'cat /data/local/tmp/pappap-smollm2.gguf > no_backup/smollm2-360m-q4km.gguf'"
+  adb shell am force-stop "$package"
+  run_case realPhoneModelWorksOffline
+fi
 run_case captureScreens
 for screen in today schedule brief journal focus; do
   adb exec-out run-as "$package" cat "cache/ui-$screen.png" > "build/ui-review/$screen.png"

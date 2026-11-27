@@ -11,16 +11,16 @@ android {
         applicationId = "ma.marqicci.daybook"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1"
-        manifestPlaceholders["appLabel"] = "Marqicci"
+        versionCode = 5
+        versionName = "2.0.0"
+        manifestPlaceholders["appLabel"] = "Pappap"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         create("preview") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".preview"
-            manifestPlaceholders["appLabel"] = "Marqicci Activities"
+            manifestPlaceholders["appLabel"] = "Pappap Preview"
             matchingFallbacks += listOf("debug")
         }
     }
@@ -32,6 +32,7 @@ android {
     buildFeatures { compose = true }
 }
 dependencies {
+    implementation(project(":inference"))
     implementation("org.threeten:threetenbp:1.7.5")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
